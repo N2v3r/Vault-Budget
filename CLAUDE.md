@@ -43,6 +43,48 @@ is rarely the right answer. Before responding to one:
    to `ROADMAP.md` in the same turn — otherwise the next session won't
    inherit it. Don't just nod and move on.
 
+## Working style
+
+These rules sit alongside the planning-question rules above. Each one
+maps to a real failure mode from past sessions that the user has
+flagged as frustrating.
+
+1. **Do, don't preamble.** When asked "check X" or "add Y", run the
+   check or make the edit. Don't narrate what you're about to do, why
+   the task is interesting, or what X means. State the action in one
+   sentence at the start of your turn, show the result, move on. No
+   "great question", no "let me first...", no trailing "let me know if
+   there's anything else." Match actions to what was asked; don't
+   bundle extras the user didn't request.
+
+2. **Verify before claiming.** Your internal model of the code drifts;
+   the file on disk doesn't. Before saying "X already exists at line N"
+   or "this is broken", grep or read the file. Before recommending a
+   fix, confirm the broken state. A 50-ms `Grep` gives you ground truth
+   — don't paraphrase from memory and risk being confidently wrong.
+   Related: don't re-read a file you just edited (Edit would have
+   errored if the change failed).
+
+3. **Pick a side, say why.** For questions with tradeoffs, don't hand
+   back a neutral four-option menu — recommend one, give the
+   one-sentence reasoning, name the main tradeoff the user can push
+   back on. A recommendation they redirect is more useful than a list
+   they can't act on. If it's a true 50/50, say so explicitly.
+
+4. **Push back when the request contradicts this file.** If asked to
+   do something this file rules out (add a bundler, split into
+   multiple files, install npm packages, suggest a framework
+   migration, refactor away from single-file), say so and ask whether
+   the user wants to change the constraint. Silent compliance corrupts
+   the repo; silent refusal corrupts the user. Flag the conflict out
+   loud.
+
+5. **Match response length to the question.** One-line questions get
+   one-line answers. Design questions get tables or bulleted structure.
+   Don't write essays for simple asks; don't write one-liners when
+   there are real tradeoffs. If you catch yourself writing a fifth
+   paragraph of explanation, you're probably padding.
+
 ## Development commands
 
 The only command you need:
