@@ -249,26 +249,31 @@ A Flutter rewrite targeting feature parity with this PWA is planned for
 Google Play Store submission. It will live in a **different repo** — do
 not mix Flutter/Dart code into this one.
 
-### Netlify as secondary host (queued, not started)
+### Hosting
 
-GitHub Pages is fine for production but has no preview-per-branch and no
-one-click rollback UI. When convenient, add Netlify on top of the same
-repo as a second deploy target:
+Three live URLs all serve the same commit from `main`:
 
-1. Sign into `netlify.com` with GitHub, click "Add new site → Import
-   existing project", select `N2v3r/Vault-Budget`.
-2. Build command: leave blank. Publish directory: `/` (root). Production
-   branch: `main`.
-3. No `netlify.toml` required — single-file static site, Netlify
-   auto-detects. Only add one if you want custom headers or a
-   `/old-url → /new-url` redirect.
-4. Every branch + PR then gets an automatic preview URL (`<slug>.netlify.app`).
-   Production stays on GH Pages; Netlify becomes the staging/preview env.
-5. If you later want Netlify as primary: point a custom domain at it
-   and disable GH Pages in repo settings. Don't do this during active
-   use — installed PWAs would need to re-register under the new origin.
+| URL | Role |
+|---|---|
+| `https://n2v3r.github.io/Vault-Budget/` | **Primary** — GitHub Pages |
+| `https://vault-budget-5.netlify.app/` | **Preview/rollback** — Netlify |
+| `https://cnc-dash.web.app/vault-budget.html` | Legacy redirect → GH Pages |
 
-**Why not do it now:** adds a second deploy every push, a second dashboard
-to keep track of, and right now there are no branches other than `main`
-so the preview feature has nothing to preview. Worth the setup the first
-time a risky change is in flight.
+Both GH Pages and Netlify auto-deploy on every push to `main`. Netlify
+additionally builds a preview URL for every non-main branch (look at the
+site's Deploys tab, or a PR comment if you open one).
+
+**No `netlify.toml`** — single-file static site, Netlify auto-detects.
+Only add one if you need custom headers or path redirects.
+
+**If a deploy goes bad:**
+- Netlify dashboard → Deploys tab → click any older deploy → "Publish
+  deploy" → rolled back in seconds (GH Pages will still serve the bad
+  commit until you `git revert`, but you have a working mirror).
+- `git revert <bad-sha> && git push` on `main` restores both hosts to
+  the pre-bad state.
+
+**If you ever want Netlify as primary** (e.g. for a custom domain):
+point DNS at Netlify, disable GH Pages in repo settings. Don't do this
+casually — installed PWAs re-register under each origin they're served
+from.
