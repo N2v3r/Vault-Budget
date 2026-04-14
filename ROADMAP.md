@@ -52,6 +52,8 @@ This is a commitment, not a weekend.
 | Fold-aware layout | **dual_screen** or `MediaQuery.displayFeatures` | Matches the existing `@media (spanning: ...)` + ≥820px two-pane behaviour |
 | PDF export | **pdf** + **printing** packages | Client-side PDF generation, no backend needed |
 | CSV | **csv** package | Same scope as the current PWA's import/export |
+| Google auth | **google_sign_in** | User's existing Android Google account — no new signup flow |
+| Cloud backup | **googleapis** (Drive v3) + **googleapis_auth** | Writes `vb-v10` blob to the app-private Drive folder; survives phone wipes |
 
 ## Phased plan
 
@@ -59,65 +61,100 @@ This is a commitment, not a weekend.
 |---|---|---|
 | **0** | Dev env setup (Flutter SDK, Android Studio, emulator, JDK 17). Verify with `flutter doctor`. | 1 day |
 | **1** | Project scaffolding — `flutter create`, Riverpod, go_router, Hive, theme, typography, glassmorphism widgets | 3–5 days |
-| **2** | Data layer — typed Dart models from the `vb-v10` JSON shape, Hive adapters, migration import from PWA export | 3–5 days |
+| **2** | Data layer — typed Dart models from the `vb-v10` JSON shape, Hive adapters, migration import from PWA export, **Google Drive backup/restore wrapper** (see "Sync architecture" below) | ~1 week |
 | **3** | Simple tier — dash, envelopes, add/edit tx, basic settings, theme toggle. First shippable alpha. | ~2 weeks |
 | **4** | Standard tier — goals, recurring, transfers, search, calendar, health score, first 3–4 charts | 2–3 weeks |
 | **5** | Power tier — multi-account, debts, split tx, remaining 9–10 charts, CSV import, CSV + PDF export, onboarding, debug overlay | 3–4 weeks |
 | **6** | Polish + release prep — animations (implicit + Rive for hero), splash, adaptive icon, signed keystore, privacy policy page, screenshots in 5 device sizes, feature graphic, Play Console listing | 1–2 weeks |
 | **7** | Play Store submission — internal testing → closed beta → open beta → production. Age rating + data safety declaration (mandatory for finance apps). | 1 week setup + 1–7 day review |
 
-## Open questions (decide before the relevant phase)
+## Decisions
 
-These are intentionally unresolved — each changes the implementation
-meaningfully. Defaults are listed if you never answer.
+All four product questions resolved on 2026-04-14. Captured here with
+reasoning so future sessions don't re-litigate.
 
-### 1. iOS / App Store?
-- **Status:** undecided
-- **Default if unanswered:** Android-only. Flutter codebase still
-  compiles for iOS, but App Store listing, Apple Developer account
-  ($99/yr), and App Store review are deferred indefinitely.
-- **Deadline to resolve:** before Phase 7 (Play submission). iOS-aware
-  code (e.g. Cupertino widgets, iOS-specific permissions) is easier to
-  add from the start than retrofit.
+### 1. iOS / App Store? — **Android only**
+Flutter codebase could still be built for iOS later if priorities
+change, but App Store listing, Apple Developer account ($99/yr), and
+App Store review are **deferred indefinitely**. No Cupertino widgets,
+no iOS-specific permission flows.
 
-### 2. Sync / multi-device?
-- **Status:** undecided
-- **Default if unanswered:** **offline-only, single device** (same as
-  PWA). User installs app → data lives on that device → if phone is
-  wiped, data is gone unless they exported first.
-- **If you want sync:** options are Firebase (easiest, same ecosystem
-  as the CNC project), Supabase (open-source alternative), or iCloud
-  (iOS-only, doesn't help Android). Each adds ~1–2 weeks to the
-  timeline and requires a privacy policy update.
-- **Deadline to resolve:** before Phase 2 (data layer). Hive vs
-  cloud-backed state is an architectural fork.
+### 2. Sync / multi-device? — **Google Drive cloud backup**
+Not a real-time multi-device sync — a **Google-Drive-backed
+periodic backup / restore** using the user's existing Android Google
+account.
 
-### 3. PWA sunset?
-- **Status:** undecided
-- **Default if unanswered:** PWA **runs alongside** the native app
-  indefinitely. Zero marginal cost — it's already deployed on free
-  hosting. Users on non-Android devices (iOS until q1, desktops, Fold
-  outer screen) keep it as their option.
-- **If you decide to sunset:** add an in-app banner on the PWA
-  pointing to the Play Store listing, then eventually 410 Gone the
-  hosted URLs. Not urgent.
+See the "Sync architecture" section below for the full design.
 
-### 4. Data migration from PWA to native app?
-- **Status:** undecided
-- **Default if unanswered:** **JSON export / import.** PWA gains a
-  "Download your data" button (writes the `vb-v10` localStorage blob
-  to a `.json` file). Native app gains an "Import from PWA" flow that
-  reads the file. Cleanest, most auditable.
-- **Alternatives:** QR code containing a compressed data URL (nice for
-  same-device transfer), or fresh-start (user accepts data loss).
-- **Deadline to resolve:** before Phase 3 (first shippable tier).
+### 3. PWA sunset? — **Runs alongside, forever**
+Zero marginal cost — already on free hosting. Iters on non-Android
+devices (iOS, desktops, Fold outer screen, tablets without Play
+Services) keep the PWA as their option. No in-app banner, no URL
+retirement.
+
+### 4. Data migration from PWA to native app? — **JSON export / import**
+- PWA gains a "Download my data" button (writes the `vb-v10`
+  localStorage blob to a `.json` file). Captured in Backlog below —
+  can ship independently of the Flutter work.
+- Native app gains an "Import from PWA" flow that reads the file.
+  Shipped in Phase 3.
+
+## Sync architecture (Google Drive)
+
+Driving principle: the user's budget file lives on the device, **not**
+in the cloud. Drive is a pull-anywhere **backup mirror**, not the
+source of truth. This avoids the complexity of real-time sync while
+solving the actual problem (phone wipe / new-phone migration).
+
+**Storage location:** `appDataFolder` scope — Google's
+app-private-on-your-own-Drive area, invisible in the user's Drive UI,
+only readable by this app. No permission to browse the user's other
+files.
+
+**What gets backed up:** A single file, `vault-budget-v10.json`, which
+is the JSON-serialised `vb-v10` blob (the whole `D` state object).
+
+**Cadence:** Three triggers, debounced:
+- After any `sv()` save — debounced to at most one Drive write per 60s
+- On app foreground after > 5 min background — ensures a recent copy
+- Manual "Back up now" button in Settings
+
+**Restore flow:** On first launch post-install (no Hive data present):
+- Offer "Sign in with Google to restore backup" card
+- If accepted → fetch `vault-budget-v10.json` from appDataFolder →
+  import into Hive → done
+- If declined or no backup exists → start fresh, user can turn on
+  backup later in Settings
+
+**Conflict policy:** last-write-wins. Each Drive upload overwrites the
+previous. No diff, no merge. Acceptable because the realistic user is
+one person editing on one device.
+
+**Optional enhancement (v1.1):** keep N versioned copies
+(`vault-budget-v10.2026-04-14.json`, etc.) with a 30-day retention, so
+a user who accidentally deletes everything can roll back. Not in v1.0.
+
+**Auth scope required:**
+`https://www.googleapis.com/auth/drive.appdata` — app folder only.
+**Not** full Drive access; not files in the user's main Drive.
+
+**Privacy policy impact:** must now disclose:
+- App authenticates with Google Sign-In
+- App reads/writes a single JSON file in its private Drive folder
+- File contains financial transactions, envelope balances, goals
+
+**Play Store "Data safety" declaration:** must declare financial data
+is transferred to "Other service" (Google Drive) for the purpose of
+"Account management / backup". Not collected by us directly.
 
 ## Backlog (PWA-only, nice-to-have)
 
 Not blocking the Flutter rewrite, but tracked here so they're not lost:
 
-- Explicit "export my data" button in settings (would also serve
-  question 4 above)
+- **"Download my data" button in PWA Settings** — needed to feed the
+  native app's "Import from PWA" flow (decision 4). Can ship anytime.
+  Implementation: one button that `JSON.stringify(D)` + triggers a
+  file download as `vault-budget-v10.json`.
 - `netlify.toml` for custom security headers (CSP, Permissions-Policy)
   if we ever want to harden
 - Automated visual-regression snapshot (Playwright against Netlify
