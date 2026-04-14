@@ -25,16 +25,36 @@ python3 -m http.server 8000
 There is nothing else to run. No `npm install`, no `npm test`, no
 `npm run build`.
 
-## Deployment
+## Deployment & hosting
 
-Pushes to `main` auto-deploy via GitHub Pages within 1–2 minutes. **Every
-commit on `main` is a release.** Use branches only for experiments you're
-not confident about. No PR/review gate — this is a solo-dev project.
+Pushes to `main` auto-deploy to **both** GH Pages and Netlify within
+1–2 minutes. **Every commit on `main` is a release.** Use branches only
+for experiments you're not confident about. No PR/review gate — this is
+a solo-dev project.
 
-Live URL: `https://n2v3r.github.io/Vault-Budget/`
+Three live URLs all serve the same `main` commit:
 
-Legacy URL `https://cnc-dash.web.app/vault-budget.html` is a redirect to
-the live URL (maintained by the separate `cnc-dash-v123` repo).
+| URL | Role |
+|---|---|
+| `https://n2v3r.github.io/Vault-Budget/` | **Primary** — GitHub Pages |
+| `https://vault-budget-5.netlify.app/` | **Preview/rollback** — Netlify |
+| `https://cnc-dash.web.app/vault-budget.html` | Legacy redirect → GH Pages (maintained by the separate `cnc-dash-v123` repo) |
+
+Netlify additionally builds a preview URL for every non-main branch —
+look at the site's Deploys tab, or a PR comment if you open one.
+
+**No `netlify.toml`** — single-file static site, Netlify auto-detects.
+Only add one if you need custom headers or path redirects.
+
+**If a deploy goes bad (fastest path):** Netlify dashboard → Deploys tab
+→ click an older deploy → "Publish deploy" → rolled back in seconds.
+GH Pages will still serve the bad commit until you `git revert` (see
+Git workflow below), but Netlify is your working mirror in the meantime.
+
+**If you ever want Netlify as primary** (e.g. for a custom domain):
+point DNS at Netlify, disable GH Pages in repo settings. Don't do this
+casually — installed PWAs re-register under each origin they're served
+from, so the existing installs would need to be migrated.
 
 ## Data architecture
 
@@ -238,8 +258,11 @@ navigation. `xwide` flag on `p` tells components the layout mode.
   workflow.
 - For experimental work: `git switch -c try/<thing>`, iterate, then
   `git switch main && git merge --squash try/<thing> && git commit`.
-- Recovery path: `git revert <bad-sha>` → push. GitHub Pages redeploys
-  within ~1 minute.
+- Recovery path (preferred, ~10s): Netlify dashboard → Deploys tab →
+  click a known-good deploy → "Publish deploy". GH Pages is still serving
+  the bad commit until you also do the step below.
+- Recovery path (permanent): `git revert <bad-sha> && git push`. Both
+  hosts redeploy within ~1 minute.
 
 ## Roadmap
 
@@ -248,32 +271,3 @@ navigation. `xwide` flag on `p` tells components the layout mode.
 A Flutter rewrite targeting feature parity with this PWA is planned for
 Google Play Store submission. It will live in a **different repo** — do
 not mix Flutter/Dart code into this one.
-
-### Hosting
-
-Three live URLs all serve the same commit from `main`:
-
-| URL | Role |
-|---|---|
-| `https://n2v3r.github.io/Vault-Budget/` | **Primary** — GitHub Pages |
-| `https://vault-budget-5.netlify.app/` | **Preview/rollback** — Netlify |
-| `https://cnc-dash.web.app/vault-budget.html` | Legacy redirect → GH Pages |
-
-Both GH Pages and Netlify auto-deploy on every push to `main`. Netlify
-additionally builds a preview URL for every non-main branch (look at the
-site's Deploys tab, or a PR comment if you open one).
-
-**No `netlify.toml`** — single-file static site, Netlify auto-detects.
-Only add one if you need custom headers or path redirects.
-
-**If a deploy goes bad:**
-- Netlify dashboard → Deploys tab → click any older deploy → "Publish
-  deploy" → rolled back in seconds (GH Pages will still serve the bad
-  commit until you `git revert`, but you have a working mirror).
-- `git revert <bad-sha> && git push` on `main` restores both hosts to
-  the pre-bad state.
-
-**If you ever want Netlify as primary** (e.g. for a custom domain):
-point DNS at Netlify, disable GH Pages in repo settings. Don't do this
-casually — installed PWAs re-register under each origin they're served
-from.
