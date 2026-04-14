@@ -266,8 +266,9 @@ navigation. `xwide` flag on `p` tells components the layout mode.
 
 ## Roadmap
 
-### Flutter rewrite (separate project)
+**See [`ROADMAP.md`](./ROADMAP.md)** for the full plan — tech stack,
+phased milestones, effort estimates, open questions (iOS, sync, PWA
+sunset, data migration), and recommended defaults.
 
-A Flutter rewrite targeting feature parity with this PWA is planned for
-Google Play Store submission. It will live in a **different repo** — do
-not mix Flutter/Dart code into this one.
+TL;DR: Flutter native rewrite targeting full feature parity, Google Play
+Store submission, **separate repo** (Flutter/Dart never lands here).
