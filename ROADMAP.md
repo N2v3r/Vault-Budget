@@ -4,7 +4,8 @@ Tracks the plan for this PWA and its planned native successor. Captured
 here so future Claude sessions (desktop, mobile, Projects) inherit the
 intent without re-deriving it.
 
-Last updated: 2026-04-14.
+Last updated: 2026-04-14 (Flutter repo name locked in:
+`N2v3r/vault-budget-flutter`).
 
 ## Current state
 
@@ -32,9 +33,10 @@ three-tier system, multi-account, debts, split transactions, CSV
 import, CSV + PDF export, onboarding, debug overlay, fold-aware
 two-pane layout.
 
-**Repo location:** a **separate third repo** (not `Vault-Budget`, not
-`cnc-dash-v123`). Name TBD when created. Flutter/Dart code never lands
-in this repo.
+**Repo location:** a **separate third repo**,
+**`N2v3r/vault-budget-flutter`** (not `Vault-Budget`, not
+`cnc-dash-v123`). Not yet created — will be spun up at the start of
+Phase 0. Flutter/Dart code never lands in this repo.
 
 **Effort estimate:** 8–12 weeks of focused solo-dev work. At evening
 pace (a few hours per day), realistically 4–6 months calendar time.
@@ -165,5 +167,6 @@ Not blocking the Flutter rewrite, but tracked here so they're not lost:
 - **`N2v3r/Vault-Budget`** (this one) — the PWA source
 - **`N2v3r/https-cnc-dash.web.app.`** — CNC work tool; hosts the
   legacy `/vault-budget.html` redirect to `n2v3r.github.io/Vault-Budget`
-- **`<future>`** — the Flutter rewrite, to be created before Phase 0.
-  Add its URL here once it exists.
+- **`N2v3r/vault-budget-flutter`** — the Flutter native rewrite. Not
+  yet created; will be spun up at the start of Phase 0. Add its URL
+  here once it exists.
