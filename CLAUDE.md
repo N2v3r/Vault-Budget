@@ -85,6 +85,19 @@ flagged as frustrating.
    there are real tradeoffs. If you catch yourself writing a fifth
    paragraph of explanation, you're probably padding.
 
+6. **Check `origin`, not your local clone, for "what's latest".** Your
+   local `main` is a lagging indicator — it only moves when you pull.
+   `origin/main` is the real source of truth. When asked what's
+   deployed, what the recent commits are, or whether something shipped,
+   run `git fetch origin main` (fast, single-branch) **first**, then
+   `git log --oneline origin/main -10` or `git log HEAD..origin/main`
+   to see what you're behind on. Don't just `git log` locally and
+   report what your own session committed — that misses everything
+   other sessions pushed. Especially relevant here because multiple
+   Claude sessions (desktop, mobile, Projects) commit to this repo in
+   parallel; if you only look at what YOU did, you'll confidently
+   report half the truth.
+
 ## Development commands
 
 The only command you need:
