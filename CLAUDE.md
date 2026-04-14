@@ -62,17 +62,41 @@ emits a `__vb_track('save', 'sv', {...})` debug event. **Never write to
 
 **Account balance invariant:** For any account with `openingBalance` set,
 `balance === openingBalance + sum(txs where accountId === acc.id)`.
-Enforced by `reconcileAccounts(data)` at line 381. Call it after any batch
-of tx mutations that could drift balances.
+Enforced by `reconcileAccounts(data)` at line 381. You don't need to call
+it manually — `sv()` runs it on every save (line 476), so any save path
+that goes through `sv()` gets reconciliation for free.
 
-**Monthly rollover** (around line 520): On first load in a new month,
-unspent envelope budget cascades to the next month (or expires, depending
-on envelope config). Rolled envelopes are counted and a `fl()` toast
-fires once per rollover event.
+**Legacy data migration:** `migrateOpeningBalances()` at line 383 runs once
+on load to backfill `openingBalance` for accounts saved before that field
+existed (derives it from current balance minus summed txs). Relevant if
+you're touching account code or debugging balance drift from old saves.
 
-**Undo:** `undoStack.current` keeps the last N snapshots. Toast from `fl(m)`
-exposes an Undo button for ~4 seconds. `fl(m, true)` suppresses the undo
-button (use for non-reversible or informational messages).
+**Monthly rollover** (line 498 useEffect): On first load in a new month,
+unspent envelope budget cascades forward. Cascade loops through every
+missed month, so if the app wasn't opened for 3 months it still settles
+correctly. The rollover write uses `sv(next, true)` — the `true` flag
+skips the undo stack so rollover can't be accidentally "undone".
+
+**Recurring auto-post** (line 496 useEffect): Each render, walks
+`D.recurring` and posts any entries with `nextTs <= now` as transactions.
+Two safeguards:
+- **Dedup:** skips posting if a tx matching the same payee already exists
+  within 10% of the interval window (`Math.abs(t.ts - rec.nextTs) < iv*.1`)
+- **Safety cap:** max 12 posts per recurring per render, to stop runaway
+  posting if `nextTs` is far in the past (e.g. old sample data)
+
+Both matter if you touch that effect — removing either can spam the
+transaction list.
+
+**Undo:** `undoStack.current` keeps up to **20 snapshots** (impl:
+`[prev, ...undoStack.current.slice(0, 19)]`). Toast from `fl(m)` exposes
+an Undo button for ~4 seconds. `fl(m, true)` suppresses the undo button
+(use for non-reversible or informational messages).
+
+**`sv(d, skipUndo)` second param:** passing `true` as the second arg skips
+the undo snapshot. Used by the rollover effect and by the undo action
+itself (so undoing doesn't create a new undo entry). Don't drop this
+flag if you modify either path.
 
 ## Tier system (feature gating)
 
@@ -95,12 +119,20 @@ tiers). Grep for `canSee("<feat>")` to find all gates for a feature.
 ## UI patterns
 
 **Overlay state machine (`ov`):** A single piece of state holds the active
-modal/overlay as `{t: "typeName", ...payload}`. Setting `ov` opens an overlay;
-setting `ov` to `null` closes with animation. Closing animation is driven
-by a separate `ovClosing` flag plus a `transitionend` listener. Modal types
-include `addTx`, `editTx`, `splitTx`, `search`, `fill`, `addEnv`, `addGoal`,
-`fundGoal`, `addRec`, `xfer`, `import`, `calendar`, `addDebt`, `payDebt`,
-`set` (settings), `graph`, `onboard`, `debug`.
+modal/overlay as `{t: "typeName", ...payload}`. Setting `ov` opens an
+overlay. `closeOv()` at line 465 is the close path: sets `ovClosing = true`,
+then after a **250ms `setTimeout`** clears `ov` back to `null` and resets
+`ovClosing`. There is **no `transitionend` listener** — the 250ms timer
+must match the CSS close-transition duration; changing one without the
+other breaks the close animation.
+
+Modal types (ov.t values): `addTx`, `editTx`, `splitTx`, `search`, `fill`,
+`addEnv`, `addGoal`, `fundGoal`, `addRecurring`, `transfer`, `import`,
+`calendar`, `addDebt`, `payDebt`, `settings`, `graph`.
+
+`onboard` and `debug` are **not** overlay types — onboarding is a separate
+top-level state variable, and `DebugOverlay` renders unconditionally when
+`__VB_DEBUG` is truthy (not via `ov`).
 
 **Modal behaviour changes on wide viewports (≥820px):** centered card style,
 no drag-to-dismiss, no bottom-sheet entrance. `centered` flag on `Morph`/`Ov`
@@ -118,7 +150,14 @@ for tooltip state.
 
 ## Debug system
 
-Activated by `?debug=1` in URL or 5-tap on the settings cog in Power tier.
+Activated by any of:
+- `?debug=1` in URL
+- 5-tap on the settings cog in Power tier
+- `localStorage.setItem('vb_debug', '1')` from DevTools (persists across reloads)
+- `window.__vb.enable()` console helper (uses the localStorage key internally)
+
+Disable with `window.__vb.disable()` or `localStorage.removeItem('vb_debug')`.
+
 Exposes:
 
 - `window.__vb` — `{ log, dump, clear, track }` console API
