@@ -93,11 +93,15 @@ Services) keep the PWA as their option. No in-app banner, no URL
 retirement.
 
 ### 4. Data migration from PWA to native app? — **JSON export / import**
-- PWA gains a "Download my data" button (writes the `vb-v10`
-  localStorage blob to a `.json` file). Captured in Backlog below —
-  can ship independently of the Flutter work.
-- Native app gains an "Import from PWA" flow that reads the file.
-  Shipped in Phase 3.
+- **PWA side: already done.** `SetOv` at line 2620 of `index.html`
+  has `📤 Export Backup` and `📥 Import Backup` buttons. Export
+  produces `vault-backup-YYYY-MM-DD.json` (pretty-printed `D` blob).
+  Import parses, validates `envs` + `txs` presence, runs
+  `migrateOpeningBalances` + `reconcileAccounts`, saves with
+  `sv(restored, true)`. No work needed.
+- **Native side:** Flutter app gains an "Import from PWA" flow that
+  reads the same `vault-backup-YYYY-MM-DD.json` format. Must handle
+  the same validation + reconciliation. Shipped in Phase 3.
 
 ## Sync architecture (Google Drive)
 
@@ -151,10 +155,6 @@ is transferred to "Other service" (Google Drive) for the purpose of
 
 Not blocking the Flutter rewrite, but tracked here so they're not lost:
 
-- **"Download my data" button in PWA Settings** — needed to feed the
-  native app's "Import from PWA" flow (decision 4). Can ship anytime.
-  Implementation: one button that `JSON.stringify(D)` + triggers a
-  file download as `vault-budget-v10.json`.
 - `netlify.toml` for custom security headers (CSP, Permissions-Policy)
   if we ever want to harden
 - Automated visual-regression snapshot (Playwright against Netlify
