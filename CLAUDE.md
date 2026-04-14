@@ -241,8 +241,34 @@ navigation. `xwide` flag on `p` tells components the layout mode.
 - Recovery path: `git revert <bad-sha>` → push. GitHub Pages redeploys
   within ~1 minute.
 
-## Roadmap (separate project)
+## Roadmap
+
+### Flutter rewrite (separate project)
 
 A Flutter rewrite targeting feature parity with this PWA is planned for
 Google Play Store submission. It will live in a **different repo** — do
 not mix Flutter/Dart code into this one.
+
+### Netlify as secondary host (queued, not started)
+
+GitHub Pages is fine for production but has no preview-per-branch and no
+one-click rollback UI. When convenient, add Netlify on top of the same
+repo as a second deploy target:
+
+1. Sign into `netlify.com` with GitHub, click "Add new site → Import
+   existing project", select `N2v3r/Vault-Budget`.
+2. Build command: leave blank. Publish directory: `/` (root). Production
+   branch: `main`.
+3. No `netlify.toml` required — single-file static site, Netlify
+   auto-detects. Only add one if you want custom headers or a
+   `/old-url → /new-url` redirect.
+4. Every branch + PR then gets an automatic preview URL (`<slug>.netlify.app`).
+   Production stays on GH Pages; Netlify becomes the staging/preview env.
+5. If you later want Netlify as primary: point a custom domain at it
+   and disable GH Pages in repo settings. Don't do this during active
+   use — installed PWAs would need to re-register under the new origin.
+
+**Why not do it now:** adds a second deploy every push, a second dashboard
+to keep track of, and right now there are no branches other than `main`
+so the preview feature has nothing to preview. Worth the setup the first
+time a risky change is in flight.
