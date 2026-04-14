@@ -13,6 +13,36 @@ no linter**. The deployed app and the source file are identical.
 upgrades unless explicitly asked.** Those are non-goals — the file-level
 simplicity is the whole point.
 
+## How to answer planning / direction questions
+
+Questions like "what's the plan?", "where do we go next?", "should we do
+X?" come up across sessions (web, mobile, Projects). Literal file-quoting
+is rarely the right answer. Before responding to one:
+
+1. **Pull fresh first.** Run `git pull origin main`. Planning decisions
+   are committed immediately to this repo (see Git workflow below), so
+   `main` is always the source of truth — but only if your clone is
+   current. Stale clones produce technically-correct-but-outdated
+   answers.
+2. **Read both `CLAUDE.md` and `ROADMAP.md` top to bottom.**
+   `ROADMAP.md` has the phased plan, locked decisions, and open
+   questions. This file has the guardrails (what NOT to do, architecture
+   constraints). Neither alone is the full picture.
+3. **"Rephrase that" ≠ different wording.** When a user asks you to
+   rephrase, they usually mean "your answer was too thin or missed the
+   point", not "the prose was bad". Find what was missing or unclear
+   and address that — don't re-state the same content in different
+   words.
+4. **Frustration signals a synthesis request.** If a user is getting
+   terse ("just read the file", "stop", one-word replies) after a
+   literal/quoted answer, they want your judgment, a recommendation, or
+   a concrete question back — not more quoting. Offer tradeoffs or ask
+   a clarifying question; don't dig deeper into the quote.
+5. **If it's not in the repo, it's not locked in.** If the user states
+   a plan detail that isn't in `CLAUDE.md` or `ROADMAP.md`, capture it
+   to `ROADMAP.md` in the same turn — otherwise the next session won't
+   inherit it. Don't just nod and move on.
+
 ## Development commands
 
 The only command you need:
