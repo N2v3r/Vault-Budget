@@ -153,6 +153,54 @@ a user who accidentally deletes everything can roll back. Not in v1.0.
 is transferred to "Other service" (Google Drive) for the purpose of
 "Account management / backup". Not collected by us directly.
 
+## SA-budget adaptation (shipped 2026-06-16, branch `claude/budget-app-8lcrir`)
+
+Adapted the PWA to the owner's real South-African finances (full build spec
+in session history). All single-file / offline / localStorage / CDN
+constraints preserved. Key model + UI additions:
+
+- **Internal transfers** — new `xfer` transaction type written as a linked
+  pair (`xferGroup`). Account balances include it; income/expense totals
+  and all spending charts exclude it (`isExpTx` / `isIncTx` / `gByMonth`).
+  New **Move-Money** overlay (`AcctXferOv`). This is the §1 keystone — a
+  sweep between own accounts is never counted as spending or income.
+- **Run-rate exclusions** — `tx.kind` of `oneoff` (capital events),
+  `lending_out`/`lending_repay` (recoverable) and `sinking` are kept out of
+  the monthly run-rate (`EXP_EXCLUDE` / `INC_EXCLUDE`).
+- **Category groups** — envelopes carry `group` (Income · Home & Family ·
+  Health · Everyday · Lifestyle · Lending). New **Budget Table** overlay
+  (`BudgetOv`): grouped Actual vs editable Target vs Diff, subtotals, and a
+  prominent Income − Spending bottom line. Income rows come from income
+  sources and can be paused.
+- **Income sources** — modelled as `recurring` rows with `isIncome`,
+  `paused`, `endTs`. Auto-post effect honours all three (the stopped
+  investment-interest case is seeded `paused`).
+- **Payee rules** — `D.rules` (`{match,kind,eid}`); `classifyImport()` applies
+  them then Capitec description patterns then sign/keyword. **Rules** overlay
+  (`RulesOv`) to manage; import can save a rule per payee.
+- **Capitec import** — `ImportOv` rewritten: paste text / CSV / PDF (pdf.js
+  from CDN, on-device), auto-categorise (transfer/subscription/fee/lending/
+  person), per-row type override + skip + save-rule, hardened dedup
+  (amount + payee + account).
+- **Subscriptions & fees** — `SubsOv`: detects recurring subs, flags spikes
+  (latest > 1.25× baseline), totals fee leakage; low-balance warning when
+  Main < `account.minBuffer`.
+- **Lending / receivables** — `D.receivables` + `LendingOv`: track money
+  lent as recoverable, match repayments (reduce balance, not counted as
+  income), pausable.
+- **Sinking funds** — goals carry `sinking:true`; one-off capital events
+  tagged `oneoff` so they don't distort the monthly view.
+- **Seed** — demo data replaced with the owner's real budget (7 accounts,
+  the 6 groups with ballpark targets, income sources, payee rules, a
+  receivable, 6 months of representative history). Default mode = `power`.
+  Settings → Reset restores this template (transactional data cleared).
+
+New tier-feature keys: `budgetTable`, `acctXfer` (Standard); `payeeRules`,
+`subscriptions`, `lending` (Power).
+
+Verification: code-reviewed + delimiter-balance checked; live verification is
+via the Netlify branch-preview URL (mobile workflow). Not yet merged to `main`.
+
 ## Backlog (PWA-only, nice-to-have)
 
 Not blocking the Flutter rewrite, but tracked here so they're not lost:

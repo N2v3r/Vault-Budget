@@ -216,152 +216,175 @@ const mK=ts=>{const d=new Date(ts);return`${d.getFullYear()}-${String(d.getMonth
 const mL=k=>{const[y,m]=k.split("-");return new Date(+y,+m-1).toLocaleDateString("en-ZA",{month:"short"})};
 const mLY=k=>{const[y,m]=k.split("-");const mo=new Date(+y,+m-1).toLocaleDateString("en-ZA",{month:"short"});return+m===1?`${mo} '${String(y).slice(-2)}`:mo};
 const EC=["#00E5A0","#3B82F6","#F59E0B","#EF4444","#A78BFA","#14B8A6","#EC4899","#FBBF24","#6366F1","#F97316"];
-const DENV=[{id:"groceries",name:"Groceries",color:"#00E5A0",budget:0,annual:false,rollover:0,subcats:[]},{id:"gas",name:"Gas / Transport",color:"#3B82F6",budget:0,annual:false,rollover:0,subcats:[]},{id:"eating_out",name:"Eating Out",color:"#F59E0B",budget:0,annual:false,rollover:0,subcats:[]},{id:"giving",name:"Giving",color:"#A78BFA",budget:0,annual:false,rollover:0,subcats:[]},{id:"fun",name:"Fun Money",color:"#EC4899",budget:0,annual:false,rollover:0,subcats:[]},{id:"rent",name:"Rent / Mortgage",color:"#14B8A6",budget:0,annual:false,rollover:0,subcats:[]},{id:"bills",name:"Bills & Utilities",color:"#EF4444",budget:0,annual:false,rollover:0,subcats:[]},{id:"savings",name:"Savings",color:"#FBBF24",budget:0,annual:true,rollover:0,subcats:[]}];
+/* ═══ CATEGORY GROUPS (SA budget) ═══ */
+const GROUPS=[
+  {id:"income",name:"Income",color:"#00E5A0",kind:"income"},
+  {id:"home",name:"Home & Family",color:"#14B8A6"},
+  {id:"health",name:"Health",color:"#EF4444"},
+  {id:"everyday",name:"Everyday",color:"#3B82F6"},
+  {id:"lifestyle",name:"Lifestyle",color:"#A78BFA"},
+  {id:"lending",name:"Lending",color:"#F97316"},
+];
+const GROUP_LABEL=id=>(GROUPS.find(g=>g.id===id)?.name||"Other");
+const GROUP_ORDER=GROUPS.map(g=>g.id);
+// Expense envelopes, grouped. budget = monthly Target (editable). group drives the budget table.
+const DENV=[
+  // Home & Family
+  {id:"rent",name:"Rent",color:"#14B8A6",budget:7620,annual:false,rollover:0,group:"home",subcats:[]},
+  {id:"household",name:"Household Allowance",color:"#06B6D4",budget:8800,annual:false,rollover:0,group:"home",subcats:["Cellphones","School Fees","Electricity"]},
+  {id:"internet",name:"Internet",color:"#3B82F6",budget:1150,annual:false,rollover:0,group:"home",subcats:["Fibre"]},
+  {id:"car_ins",name:"Car Insurance",color:"#6366F1",budget:1110,annual:false,rollover:0,group:"home",subcats:["Car 1","Car 2"]},
+  // Health (self-funded, no medical aid)
+  {id:"medicine",name:"Medicine",color:"#EF4444",budget:2550,annual:false,rollover:0,group:"health",subcats:["Pharmacy","Chronic"]},
+  {id:"trt",name:"TRT / Peptides",color:"#EC4899",budget:2750,annual:false,rollover:0,group:"health",subcats:["Supplier"]},
+  {id:"doctors",name:"Doctors",color:"#F97316",budget:150,annual:false,rollover:0,group:"health",subcats:[]},
+  // Everyday
+  {id:"groceries",name:"Groceries",color:"#00E5A0",budget:2500,annual:false,rollover:0,group:"everyday",subcats:["Checkers","Woolworths","Pick n Pay","Spar"]},
+  {id:"fuel",name:"Fuel",color:"#3B82F6",budget:2900,annual:false,rollover:0,group:"everyday",subcats:["Engen","Shell","Sasol","BP"]},
+  {id:"personal_care",name:"Toiletries & Personal",color:"#14B8A6",budget:2750,annual:false,rollover:0,group:"everyday",subcats:["Clicks","Dis-Chem"]},
+  {id:"bank_fees",name:"Bank Fees",color:"#EF4444",budget:200,annual:false,rollover:0,group:"everyday",subcats:["Decline","Intl","Monthly"]},
+  // Lifestyle
+  {id:"takeaways",name:"Takeaways",color:"#F59E0B",budget:1200,annual:false,rollover:0,group:"lifestyle",subcats:[]},
+  {id:"clothing",name:"Clothing",color:"#A78BFA",budget:800,annual:false,rollover:0,group:"lifestyle",subcats:[]},
+  {id:"online",name:"Online Shopping",color:"#EC4899",budget:800,annual:false,rollover:0,group:"lifestyle",subcats:[]},
+  {id:"going_out",name:"Going Out",color:"#FBBF24",budget:1000,annual:false,rollover:0,group:"lifestyle",subcats:[]},
+  {id:"subs",name:"Subscriptions",color:"#6366F1",budget:3200,annual:false,rollover:0,group:"lifestyle",subcats:["AI Tool","Streaming","Cloud / Dev","Music"]},
+  // Lending (recoverable — repayments net against it)
+  {id:"lending",name:"Lending",color:"#F97316",budget:400,annual:false,rollover:0,group:"lending",subcats:[]},
+];
+/* ═══ RUN-RATE CLASSIFICATION ═══ */
+// Internal transfers (type "xfer") are NEVER income or expense.
+// These tx.kind values are real money but excluded from the monthly run-rate:
+//  oneoff = capital event (car, procedure) · lending_out / lending_repay = recoverable · sinking = saved for lumpy cost
+const EXP_EXCLUDE=new Set(["oneoff","lending_out","sinking"]);
+const INC_EXCLUDE=new Set(["oneoff","lending_repay"]);
+const isExpTx=t=>t.type==="exp"&&!EXP_EXCLUDE.has(t.kind);
+const isIncTx=t=>t.type==="inc"&&!INC_EXCLUDE.has(t.kind);
+const isInternalXfer=t=>t.type==="xfer";
 /* ═══ TIER SYSTEM ═══ */
 const SIMPLE_FEATURES=new Set(["dash","envList","envDetail","addTx","editTx","themeToggle","reset","onboard","dailyBudget","accentPicker"]);
-const STANDARD_FEATURES=new Set([...SIMPLE_FEATURES,"healthScore","goals","addGoal","fundGoal","recurring","addRecurring","calendar","fill","transfer","search","notes","periodFilter","unallocated","monthlyTrend","incVsExp","budgetStatus","rolloverBadges","deleteTx","undo","donut","accounts"]);
-const POWER_FEATURES=new Set([...STANDARD_FEATURES,"multiAccount","debts","addDebt","payDebt","splitTx","deepReports","csvExport","pdfExport","csvImport","subcatMgmt","accentPicker","fabRadial","searchEnvFilter","debug","accountMgmt","netWorth"]);
+const STANDARD_FEATURES=new Set([...SIMPLE_FEATURES,"healthScore","goals","addGoal","fundGoal","recurring","addRecurring","calendar","fill","transfer","search","notes","periodFilter","unallocated","monthlyTrend","incVsExp","budgetStatus","rolloverBadges","deleteTx","undo","donut","accounts","budgetTable","acctXfer"]);
+const POWER_FEATURES=new Set([...STANDARD_FEATURES,"multiAccount","debts","addDebt","payDebt","splitTx","deepReports","csvExport","pdfExport","csvImport","subcatMgmt","accentPicker","fabRadial","searchEnvFilter","debug","accountMgmt","netWorth","payeeRules","subscriptions","lending"]);
 const canSee=(mode,feat)=>{if(mode==="power")return true;if(mode==="standard")return STANDARD_FEATURES.has(feat);return SIMPLE_FEATURES.has(feat)};
 const MODES=[{id:"simple",name:"Simple",icon:"🌱",desc:"Just the basics. Track spending, stay in budget.",color:"#00E5A0"},{id:"standard",name:"Standard",icon:"📊",desc:"Full budgeting. Goals, bills, reports.",color:"#3B82F6"},{id:"power",name:"Power",icon:"⚡",desc:"Everything. Accounts, debt, imports, deep analytics.",color:"#A78BFA"}];
 const initD=()=>{
   const now=Date.now(),day=864e5;
   const mkTx=(type,amt,desc,eid,ts,sub,accId)=>({id:uid(),type,amt:type==="exp"?-Math.abs(amt):amt,desc,payee:desc,eid,subcat:sub||"",accountId:accId||"acc_main",ts});
   const envs=DENV.map(e=>({...e}));
-  envs[0].budget=4800;envs[0].subcats=["Checkers","Woolworths","Pick n Pay","Spar"];
-  envs[1].budget=3000;envs[1].subcats=["Fuel","Uber","Tolls"];
-  envs[2].budget=2200;envs[2].subcats=["Restaurants","Takeaway","Coffee"];
-  envs[3].budget=1500;
-  envs[4].budget=1800;envs[4].subcats=["Netflix","Spotify","Games","Showmax"];
-  envs[5].budget=9200;
-  envs[6].budget=3500;envs[6].subcats=["Electricity","Water","DSTV","Fibre"];
-  envs[7].budget=2500;
-  // Seeded pseudo-random for reproducible demo data
-  let _s=42;const sR=()=>{_s=(_s*16807+0)%2147483647;return(_s&0x7fffffff)/2147483647};
-  const vary=(base,pct)=>Math.round(base*(1+(sR()-.5)*2*pct));
-  const pick=(arr)=>arr[Math.floor(sR()*arr.length)];
+  // Seeded PRNG for reproducible starting history
+  let _s=99;const sR=()=>{_s=(_s*16807)%2147483647;return(_s&0x7fffffff)/2147483647};
+  const vary=(b,p)=>Math.max(1,Math.round(b*(1+(sR()-.5)*2*p)));
+  const pick=a=>a[Math.floor(sR()*a.length)];
   const txs=[];
-  // Generate 27 months of data
-  const nMonths=27;
+  const nMonths=6;
   const baseDate=new Date();baseDate.setDate(1);baseDate.setHours(12,0,0,0);
-  // Salary: started at 28000, promotion at month 14 to 33000, raise to 36000 recently
-  const salaryAt=m=>{if(m<8)return 28000;if(m<18)return 30000+Math.round(m*150);return 33000+Math.round((m-18)*350)};
-  // Seasonal multipliers
-  const seasonal=m=>{const mo=new Date(baseDate.getFullYear(),baseDate.getMonth()-m,1).getMonth();if(mo===11)return 1.35;if(mo===0)return 1.18;if(mo===5||mo===6)return 1.12;if(mo===3||mo===9)return 0.9;return 1};
-  const grocPayees=[["Checkers","Checkers"],["Woolworths","Woolworths"],["Pick n Pay","Pick n Pay"],["Spar","Spar"]];
-  const fuelPayees=[["Engen","Fuel"],["Shell","Fuel"],["Sasol","Fuel"],["BP","Fuel"]];
-  const eatPayees=[["Spur","Restaurants"],["Nando's","Takeaway"],["Ocean Basket","Restaurants"],["Vida e Caffè","Coffee"],["Mugg & Bean","Coffee"],["Steers","Takeaway"],["RocoMamas","Restaurants"],["Wimpy","Restaurants"],["KFC","Takeaway"],["Mochachos","Takeaway"],["Primi Piatti","Restaurants"],["Doppio Zero","Restaurants"]];
-  const debtCarId=uid(),debtCcId=uid();
-  // Track debt payments for accurate balance computation
-  let carPaid=0,ccPaid=0;
+  // expense helper (kind optional)
+  const ex=(amt,desc,eid,ts,sub,accId,kind)=>{const t=mkTx("exp",amt,desc,eid,ts,sub,accId||"acc_main");if(kind)t.kind=kind;txs.push(t)};
+  // income helper
+  const inc=(amt,desc,ts,accId,kind)=>{const t=mkTx("inc",amt,desc,"_inc",ts,"",accId||"acc_main");if(kind)t.kind=kind;txs.push(t)};
+  // INTERNAL TRANSFER — a linked pair (type "xfer"); nets to zero, never counts as income/expense
+  const xfer=(amt,fromAcc,toAcc,desc,ts,kind)=>{const g=uid();txs.push({id:uid(),type:"xfer",amt:-Math.abs(amt),desc,payee:desc,eid:"_xfer",subcat:"",accountId:fromAcc,ts,xferGroup:g,kind:kind||"transfer"});txs.push({id:uid(),type:"xfer",amt:Math.abs(amt),desc,payee:desc,eid:"_xfer",subcat:"",accountId:toAcc,ts:ts+1,xferGroup:g,kind:kind||"transfer"})};
   for(let m=nMonths-1;m>=0;m--){
     const mStart=new Date(baseDate.getFullYear(),baseDate.getMonth()-m,1);
-    const daysInM=new Date(mStart.getFullYear(),mStart.getMonth()+1,0).getDate();
-    const mTs=d=>mStart.getTime()+(Math.max(1,Math.min(d,daysInM))-1)*day+sR()*day*.5;
-    const sm=seasonal(m);const sal=salaryAt(nMonths-1-m);
-    const mMonth=mStart.getMonth(); // 0-11 actual calendar month
-    // Salary — 25th of month
-    txs.push(mkTx("inc",sal,"Salary","_inc",mTs(Math.min(25,daysInM))));
-    // Bonus — December & mid-year
-    if(mMonth===11)txs.push(mkTx("inc",vary(sal*0.8,.15),"13th Cheque","_inc",mTs(20)));
-    if(mMonth===6&&sR()>.4)txs.push(mkTx("inc",vary(6000,.3),"Performance Bonus","_inc",mTs(25)));
-    // Freelance side income (sporadic, more frequent recently)
-    if(sR()>(m>12?.7:.55))txs.push(mkTx("inc",vary(m>12?2500:4500,.4),"Freelance","_inc",mTs(vary(15,.4)),"","acc_save"));
-    // Tax refund (once a year, August-ish)
-    if(mMonth===7&&m>6)txs.push(mkTx("inc",vary(4200,.3),"SARS Refund","_inc",mTs(18)));
-    // Groceries: 3-6 trips per month, spending grows with inflation
-    const grocBase=Math.round((3800+((nMonths-1-m)/nMonths)*1000)*sm);
-    const nGroc=3+Math.floor(sR()*4);
-    for(let g=0;g<nGroc;g++){const[p,sc]=pick(grocPayees);txs.push(mkTx("exp",vary(Math.round(grocBase/nGroc),.2),p,"groceries",mTs(vary(Math.round((g+1)*daysInM/(nGroc+1)),.15)),sc))}
-    // Gas: 2-4 fills, fuel price increases over time
-    const fuelBase=Math.round((1800+((nMonths-1-m)/nMonths)*800));
-    const nGas=2+Math.floor(sR()*3);
-    for(let g=0;g<nGas;g++){const[p,sc]=pick(fuelPayees);txs.push(mkTx("exp",vary(Math.round(fuelBase/nGas),.2),p,"gas",mTs(vary(Math.round((g+1)*daysInM/(nGas+1)),.2)),sc))}
-    // Uber: 0-4 rides
-    const nUber=Math.floor(sR()*5);
-    for(let u=0;u<nUber;u++)txs.push(mkTx("exp",vary(135,.5),"Uber","gas",mTs(vary(12,.6)),"Uber"));
-    // Tolls
-    if(sR()>.35)txs.push(mkTx("exp",vary(72,.25),"N1 Tolls","gas",mTs(vary(10,.5)),"Tolls"));
-    if(sR()>.7)txs.push(mkTx("exp",vary(45,.2),"N3 Tolls","gas",mTs(vary(20,.5)),"Tolls"));
-    // Eating out: 2-6 visits, more recent = more spending
-    const nEat=2+Math.floor(sR()*(m>15?3:5));
-    for(let e=0;e<nEat;e++){const[p,sc]=pick(eatPayees);txs.push(mkTx("exp",vary(sc==="Coffee"?82:sc==="Takeaway"?280:620,.3),p,"eating_out",mTs(vary(Math.round((e+1)*daysInM/(nEat+1)),.2)),sc))}
-    // December eating out spike
-    if(mMonth===11){for(let e=0;e<3;e++){const[p,sc]=pick(eatPayees);txs.push(mkTx("exp",vary(750,.3),p,"eating_out",mTs(vary(15+e*4,.2)),sc))}}
-    // Giving: tithing + occasional charity
-    txs.push(mkTx("exp",vary(1500,.05),"Tithing","giving",mTs(1)));
-    if(sR()>.55)txs.push(mkTx("exp",vary(600,.5),"Charity","giving",mTs(vary(15,.4))));
-    if(mMonth===11)txs.push(mkTx("exp",vary(2000,.3),"Christmas Gifts","giving",mTs(vary(18,.2))));
-    // Fun: subscriptions + discretionary
-    txs.push(mkTx("exp",199,"Netflix","fun",mTs(2),"Netflix"));
-    txs.push(mkTx("exp",m<10?0:69,"Showmax","fun",mTs(2),"Showmax")); // added Showmax 10 months ago
-    txs.push(mkTx("exp",89,"Spotify","fun",mTs(2),"Spotify"));
-    if(sR()>.45)txs.push(mkTx("exp",vary(400,.5),"Steam Games","fun",mTs(vary(12,.4)),"Games"));
-    if(sR()>.55)txs.push(mkTx("exp",vary(300,.35),"Movies","fun",mTs(vary(18,.3))));
-    if(m<=6&&sR()>.6)txs.push(mkTx("exp",vary(550,.3),"Concert","fun",mTs(vary(20,.3))));
-    // December holidays
-    if(mMonth===11){
-      txs.push(mkTx("exp",vary(3500,.3),"Holiday Accommodation","fun",mTs(20)));
-      txs.push(mkTx("exp",vary(1200,.3),"Holiday Activities","fun",mTs(22)));
-    }
-    // Rent — increases yearly
-    const rent=m>=24?7500:m>=12?8500:9200;
-    txs.push(mkTx("exp",rent,"Rent","rent",mTs(1)));
-    // Bills — seasonal variation for electricity, price increases
-    const eskBase=Math.round((1100+((nMonths-1-m)/nMonths)*500)*(m>=4&&m<=9?1.25:1)*sm);
-    txs.push(mkTx("exp",vary(eskBase,.08),"Eskom","bills",mTs(3),"Electricity"));
-    txs.push(mkTx("exp",vary(Math.round(300+((nMonths-1-m)/nMonths)*100),.12),"Water","bills",mTs(3),"Water"));
-    txs.push(mkTx("exp",m<15?779:839,"DSTV","bills",mTs(5),"DSTV"));
-    txs.push(mkTx("exp",m<8?449:499,"Vumatel","bills",mTs(5),"Fibre"));
-    // Medical (occasional)
-    if(sR()>.85)txs.push(mkTx("exp",vary(1200,.5),"Dr Visit","bills",mTs(vary(14,.5))));
-    if(sR()>.92)txs.push(mkTx("exp",vary(3500,.4),"Dentist","bills",mTs(vary(10,.5))));
-    // Savings — grows over time, started small
-    const savAmt=Math.round(500+((nMonths-1-m)/nMonths)*2000);
-    txs.push(mkTx("exp",savAmt,"Savings Transfer","savings",mTs(1),"","acc_save"));
-    // Car loan payments — fixed
-    const carTx=mkTx("exp",3200,"Car Loan Payment","_debt",mTs(1));carTx.debtId=debtCarId;txs.push(carTx);
-    carPaid+=3200;
-    // Credit card payments (variable, sometimes missed)
-    if(sR()>.2){const ccPay=vary(900,.5);const ccTx=mkTx("exp",ccPay,"Credit Card Payment","_debt",mTs(15));ccTx.debtId=debtCcId;txs.push(ccTx);ccPaid+=ccPay}
-    // Life events
-    if(m===18)txs.push(mkTx("exp",6500,"Car Service","gas",mTs(12),"Fuel")); // Car service 18 months ago
-    if(m===10)txs.push(mkTx("exp",2800,"Birthday Party","fun",mTs(15))); // Birthday
-    if(m===5)txs.push(mkTx("exp",4200,"New Tyres","gas",mTs(8),"Fuel")); // Tyres
-    if(m===2)txs.push(mkTx("exp",1500,"Vet","bills",mTs(10))); // Pet vet visit
-    if(m===14){txs.push(mkTx("inc",15000,"Freelance Project","_inc",mTs(20),"","acc_save"))} // Big project
-    if(m===8)txs.push(mkTx("exp",8500,"Insurance Excess","bills",mTs(5))); // Accident claim
-    if(m===22)txs.push(mkTx("exp",3200,"Appliance Repair","bills",mTs(12))); // Washing machine
+    const dim=new Date(mStart.getFullYear(),mStart.getMonth()+1,0).getDate();
+    const T=d=>mStart.getTime()+(Math.max(1,Math.min(Math.round(d),dim))-1)*day+Math.floor(sR()*day*.4);
+    // ── Income ── salary lands in Main (recent raise: lower earlier)
+    inc(m>=4?36000:39000,"Salary",T(25),"acc_main");
+    // Investment interest — STOPPED 2 months ago (date-bounded source demo)
+    if(m>=2)inc(3600,"Investment Interest",T(3),"acc_main");
+    if(sR()>.4)inc(vary(2000,.4),"Spouse Contribution",T(vary(12,.4)),"acc_main");
+    // ── Salary sweeps to pockets (internal — must NOT count as income/expense) ──
+    xfer(20000,"acc_main","acc_budget","Banking App Transfer to Monthly Budget",T(25));
+    xfer(2500,"acc_main","acc_emerg","Banking App Transfer to Emergency Fund",T(26));
+    xfer(1500,"acc_main","acc_medical","Banking App Transfer to Medical Fund",T(26));
+    xfer(1200,"acc_main","acc_vehicle","Banking App Transfer to Vehicle",T(26));
+    if(sR()>.5)xfer(vary(150,.6),"acc_main","acc_livebetter","Live Better Round-up Transfer",T(vary(15,.5)),"sweep");
+    // ── Home & Family (paid from Monthly Budget pocket) ──
+    ex(7620,"Immediate Payment: Landlord","rent",T(1),"","acc_budget");
+    ex(8800,"Immediate Payment: Spouse","household",T(2),"","acc_budget");
+    ex(1150,"Recurring Card Purchase: Internet","internet",T(5),"Fibre","acc_budget","subscription");
+    ex(1110,"Car Insurance","car_ins",T(4),"","acc_budget");
+    // ── Health (self-funded) — pharmacy SPLIT across medicine + personal care ──
+    const pharm=vary(5300,.12);
+    ex(Math.round(pharm*0.48),"Clicks Pharmacy","medicine",T(vary(8,.5)),"Pharmacy","acc_medical");
+    ex(Math.round(pharm*0.52),"Clicks","personal_care",T(vary(8,.5)),"Clicks","acc_budget");
+    if(m%3===0)ex(vary(8200,.08),"TRT Supplier","trt",T(vary(10,.4)),"Supplier","acc_medical");else ex(vary(900,.3),"Peptide Top-up","trt",T(vary(10,.4)),"Supplier","acc_medical");
+    if(sR()>.6)ex(vary(450,.4),"Dr Visit","doctors",T(vary(14,.5)),"","acc_medical");
+    // ── Everyday ──
+    const nG=3+Math.floor(sR()*3);for(let g=0;g<nG;g++){const p=pick(["Checkers","Woolworths","Pick n Pay","Spar"]);ex(vary(2500/nG,.3),p,"groceries",T(vary((g+1)*dim/(nG+1),.2)),p,"acc_budget")}
+    const nF=2+Math.floor(sR()*2);for(let g=0;g<nF;g++){const p=pick(["Engen","Shell","Sasol","BP"]);ex(vary(2900/nF,.25),p,"fuel",T(vary((g+1)*dim/(nF+1),.2)),p,"acc_budget")}
+    // ── Lifestyle subscriptions (incl AI tool + a spike) ──
+    ex(2500,"Recurring Card Purchase: AI Tool","subs",T(6),"AI Tool","acc_main","subscription");
+    if(m===1)ex(3700,"Recurring Card Purchase: AI Tool Add-on","subs",T(6),"AI Tool","acc_main","subscription");
+    ex(199,"Recurring Card Purchase: Netflix","subs",T(7),"Streaming","acc_main","subscription");
+    ex(89,"Recurring Card Purchase: Spotify","subs",T(7),"Music","acc_main","subscription");
+    if(sR()>.4)ex(vary(700,.5),pick(["Nando's","Uber Eats","Steers","KFC"]),"takeaways",T(vary(16,.4)),"","acc_main");
+    if(sR()>.6)ex(vary(800,.5),pick(["Mr Price","Cotton On","Superbalist"]),"clothing",T(vary(18,.4)),"","acc_main");
+    if(sR()>.55)ex(vary(700,.6),pick(["Takealot","Amazon"]),"online",T(vary(19,.4)),"","acc_main");
+    if(sR()>.5)ex(vary(900,.5),pick(["Movie Night","The Bar","Restaurant"]),"going_out",T(vary(20,.4)),"","acc_main");
+    // ── Fees (Main account runs near zero) ──
+    if(sR()>.55)ex(vary(85,.3),"Card Purchase Limit Exceeded Fee","bank_fees",T(vary(22,.5)),"Decline","acc_main","fee");
+    if(sR()>.7)ex(vary(160,.2),"International Transaction Fee","bank_fees",T(vary(6,.3)),"Intl","acc_main","fee");
+    ex(60,"Monthly Account Fee","bank_fees",T(1),"Monthly","acc_main","fee");
+    // ── Lending out + repayments (recoverable, not run-rate spending) ──
+    if(m===nMonths-1)ex(2000,"Immediate Payment: Friend","lending",T(5),"","acc_main","lending_out");
+    if(sR()>.5)inc(vary(400,.2),"PayShap from Friend",T(vary(15,.5)),"acc_main","lending_repay");
   }
-  // Filter out R0 Showmax txs from before subscription started
-  const filteredTxs=txs.filter(t=>!(t.payee==="Showmax"&&t.amt===0));
-  // Compute debt balances from actual payments
-  const carBalance=180000-carPaid;
-  const ccBalance=Math.max(25000-ccPaid,0);
+  // One-off capital event — kept OUT of monthly run-rate via kind:"oneoff"
+  ex(45000,"Car Purchase Deposit","_oneoff",baseDate.getTime()-2*day,"","acc_save","oneoff");
+  // Sinking funds (lumpy / annual costs saved up over time)
   const goals=[
-    {id:uid(),name:"Holiday Fund",target:30000,saved:21500,color:"#3B82F6",icon:"✈️"},
-    {id:uid(),name:"Emergency Fund",target:60000,saved:42000,color:"#00E5A0",icon:"🛡️"},
-    {id:uid(),name:"New Laptop",target:22000,saved:9800,color:"#A78BFA",icon:"💻"},
-    {id:uid(),name:"Car Service Fund",target:8000,saved:8000,color:"#F59E0B",icon:"🚗"},
-    {id:uid(),name:"Wedding Gift",target:5000,saved:3200,color:"#EC4899",icon:"🎁"},
+    {id:uid(),name:"Emergency Fund",target:60000,saved:38000,color:"#00E5A0",icon:"🛡️",sinking:true},
+    {id:uid(),name:"Medical Fund",target:30000,saved:12500,color:"#EF4444",icon:"➕",sinking:true},
+    {id:uid(),name:"Vehicle Maintenance",target:15000,saved:6400,color:"#6366F1",icon:"🔧",sinking:true},
+    {id:uid(),name:"Vehicle Licence",target:1800,saved:900,color:"#F59E0B",icon:"🚗",sinking:true},
+    {id:uid(),name:"Annual Insurance",target:13320,saved:5500,color:"#A78BFA",icon:"📅",sinking:true},
   ];
+  // Recurring — income sources (isIncome) + fixed bills. paused / endTs supported.
   const recurring=[
-    {id:uid(),payee:"Rent",amt:-9200,eid:"rent",freq:"monthly",nextTs:now+25*day,lastTs:now-5*day,subcat:"",accountId:"acc_main"},
-    {id:uid(),payee:"DSTV",amt:-839,eid:"bills",freq:"monthly",nextTs:now+20*day,lastTs:now-10*day,subcat:"DSTV",accountId:"acc_main"},
-    {id:uid(),payee:"Netflix",amt:-199,eid:"fun",freq:"monthly",nextTs:now+22*day,lastTs:now-8*day,subcat:"Netflix",accountId:"acc_main"},
-    {id:uid(),payee:"Spotify",amt:-89,eid:"fun",freq:"monthly",nextTs:now+22*day,lastTs:now-8*day,subcat:"Spotify",accountId:"acc_main"},
-    {id:uid(),payee:"Showmax",amt:-69,eid:"fun",freq:"monthly",nextTs:now+22*day,lastTs:now-8*day,subcat:"Showmax",accountId:"acc_main"},
-    {id:uid(),payee:"Car Loan",amt:-3200,eid:"_debt",freq:"monthly",nextTs:now+28*day,lastTs:now-2*day,subcat:"",accountId:"acc_main"},
-    {id:uid(),payee:"Vumatel",amt:-499,eid:"bills",freq:"monthly",nextTs:now+18*day,lastTs:now-12*day,subcat:"Fibre",accountId:"acc_main"},
+    {id:uid(),payee:"Salary",amt:39000,isIncome:true,eid:"_inc",freq:"monthly",nextTs:now+10*day,lastTs:now-20*day,subcat:"",accountId:"acc_main",paused:false},
+    {id:uid(),payee:"Investment Interest",amt:3600,isIncome:true,eid:"_inc",freq:"monthly",nextTs:now+3*day,lastTs:now-27*day,subcat:"",accountId:"acc_main",paused:true,endTs:now-40*day},
+    {id:uid(),payee:"Spouse Contribution",amt:2000,isIncome:true,eid:"_inc",freq:"monthly",nextTs:now+8*day,lastTs:now-22*day,subcat:"",accountId:"acc_main",paused:false},
+    {id:uid(),payee:"Immediate Payment: Landlord",amt:-7620,eid:"rent",freq:"monthly",nextTs:now+1*day,lastTs:now-29*day,subcat:"",accountId:"acc_budget"},
+    {id:uid(),payee:"Immediate Payment: Spouse",amt:-8800,eid:"household",freq:"monthly",nextTs:now+2*day,lastTs:now-28*day,subcat:"",accountId:"acc_budget"},
+    {id:uid(),payee:"Recurring Card Purchase: Internet",amt:-1150,eid:"internet",freq:"monthly",nextTs:now+5*day,lastTs:now-25*day,subcat:"Fibre",accountId:"acc_budget"},
+    {id:uid(),payee:"Car Insurance",amt:-1110,eid:"car_ins",freq:"monthly",nextTs:now+4*day,lastTs:now-26*day,subcat:"",accountId:"acc_budget"},
+    {id:uid(),payee:"Recurring Card Purchase: AI Tool",amt:-2500,eid:"subs",freq:"monthly",nextTs:now+6*day,lastTs:now-24*day,subcat:"AI Tool",accountId:"acc_main"},
+    {id:uid(),payee:"Recurring Card Purchase: Netflix",amt:-199,eid:"subs",freq:"monthly",nextTs:now+7*day,lastTs:now-23*day,subcat:"Streaming",accountId:"acc_main"},
+    {id:uid(),payee:"Recurring Card Purchase: Spotify",amt:-89,eid:"subs",freq:"monthly",nextTs:now+7*day,lastTs:now-23*day,subcat:"Music",accountId:"acc_main"},
   ];
+  // 7 accounts: one transaction account + savings pockets. minBuffer on Main for low-balance warnings.
   const accounts=[
-    {id:"acc_main",name:"Cheque Account",type:"cheque",balance:45000,color:"#00E5A0",icon:"🏦"},
-    {id:"acc_save",name:"Savings Account",type:"savings",balance:28000,color:"#3B82F6",icon:"💰"},
+    {id:"acc_main",name:"Main / Transaction",type:"cheque",balance:850,color:"#00E5A0",icon:"🏦",minBuffer:1000},
+    {id:"acc_budget",name:"Monthly Budget",type:"savings",balance:6200,color:"#3B82F6",icon:"📅",pocket:true},
+    {id:"acc_save",name:"Saving",type:"savings",balance:21000,color:"#FBBF24",icon:"💰",pocket:true},
+    {id:"acc_emerg",name:"Emergency Fund",type:"savings",balance:38000,color:"#14B8A6",icon:"🛡️",pocket:true},
+    {id:"acc_medical",name:"Medical Fund",type:"savings",balance:12500,color:"#EF4444",icon:"➕",pocket:true},
+    {id:"acc_vehicle",name:"Vehicle",type:"savings",balance:6400,color:"#6366F1",icon:"🚗",pocket:true},
+    {id:"acc_livebetter",name:"Live Better",type:"savings",balance:1850,color:"#A78BFA",icon:"✨",pocket:true},
   ];
-  const debts=[
-    {id:debtCarId,name:"Car Loan",type:"loan",originalAmt:180000,balance:carBalance,rate:11.5,minPayment:3200,color:"#EF4444",icon:"🚗"},
-    {id:debtCcId,name:"Credit Card",type:"credit_card",originalAmt:25000,balance:ccBalance,rate:21,minPayment:450,color:"#F97316",icon:"💳"},
+  // Informal lending — recoverable balance, repayments net against it, pausable
+  const receivables=[
+    {id:uid(),name:"Loan to Friend",person:"Friend",balance:1600,paused:false,color:"#F97316",icon:"🤝"},
   ];
-  return {envs,txs:filteredTxs,goals,recurring,accounts,debts,unal:3200,theme:"dark",accent:"vault",mode:"simple",nudgeShown:{standard:false,power:false},lastRolloverMonth:mK(Date.now())};
+  // Saved payee → category rules (auto-categorise on import + manual entry)
+  const rules=[
+    {id:uid(),match:"Banking App Transfer",kind:"transfer"},
+    {id:uid(),match:"Live Better Round-up",kind:"transfer"},
+    {id:uid(),match:"Landlord",kind:"expense",eid:"rent"},
+    {id:uid(),match:"Spouse",kind:"expense",eid:"household"},
+    {id:uid(),match:"Clicks Pharmacy",kind:"expense",eid:"medicine"},
+    {id:uid(),match:"Dis-Chem",kind:"expense",eid:"medicine"},
+    {id:uid(),match:"TRT Supplier",kind:"expense",eid:"trt"},
+    {id:uid(),match:"Recurring Card Purchase",kind:"expense",eid:"subs"},
+    {id:uid(),match:"Friend",kind:"lending"},
+    {id:uid(),match:"Decline Fee",kind:"fee",eid:"bank_fees"},
+    {id:uid(),match:"Insufficient Funds Fee",kind:"fee",eid:"bank_fees"},
+    {id:uid(),match:"International Transaction Fee",kind:"fee",eid:"bank_fees"},
+    {id:uid(),match:"Card Purchase Limit Exceeded Fee",kind:"fee",eid:"bank_fees"},
+    {id:uid(),match:"Salary",kind:"income"},
+  ];
+  return {envs,txs,goals,recurring,accounts,debts:[],receivables,rules,unal:0,theme:"dark",accent:"vault",mode:"power",nudgeShown:{standard:true,power:true},lastRolloverMonth:mK(Date.now())};
 };
 let A="#00E5A0",A2="#00B4D8";
 const THEMES={
@@ -439,7 +462,10 @@ function LPDiv({onLong,onTap,children,...rest}){const lp=useLongPress(onLong,onT
 
 /* ═══ GRAPH DATA HELPERS ═══ */
 function gMonths(n=6){const now=new Date();const r=[];for(let i=n-1;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);r.push({mk:mK(d.getTime()),label:mL(mK(d.getTime())),labelY:mLY(mK(d.getTime())),start:d.getTime(),end:new Date(d.getFullYear(),d.getMonth()+1,1).getTime()})}return r}
-function gByMonth(txs,opts={}){const{n=6,type,eid,subcat}=opts;const ms=gMonths(n);return ms.map(m=>{let f=txs.filter(t=>t.ts>=m.start&&t.ts<m.end);if(type)f=f.filter(t=>t.type===type);if(eid)f=f.filter(t=>t.eid===eid);if(subcat)f=f.filter(t=>t.subcat===subcat);return{...m,sum:f.reduce((s,t)=>s+Math.abs(t.amt),0),inc:f.filter(t=>t.type==="inc").reduce((s,t)=>s+t.amt,0),exp:f.filter(t=>t.type==="exp").reduce((s,t)=>s+Math.abs(t.amt),0),txs:f}})}
+function gByMonth(txs,opts={}){const{n=6,type,eid,subcat}=opts;const ms=gMonths(n);return ms.map(m=>{let f=txs.filter(t=>t.ts>=m.start&&t.ts<m.end);
+  // exclude internal transfers + non-run-rate kinds from spending/income aggregation
+  f=f.filter(t=>!isInternalXfer(t)&&!(t.type==="exp"&&EXP_EXCLUDE.has(t.kind))&&!(t.type==="inc"&&INC_EXCLUDE.has(t.kind)));
+  if(type)f=f.filter(t=>t.type===type);if(eid)f=f.filter(t=>t.eid===eid);if(subcat)f=f.filter(t=>t.subcat===subcat);return{...m,sum:f.filter(t=>t.type==="exp").reduce((s,t)=>s+Math.abs(t.amt),0),inc:f.filter(t=>t.type==="inc").reduce((s,t)=>s+t.amt,0),exp:f.filter(t=>t.type==="exp").reduce((s,t)=>s+Math.abs(t.amt),0),txs:f}})}
 const GP=[{k:3,l:"3M"},{k:6,l:"6M"},{k:12,l:"1Y"},{k:24,l:"2Y"},{k:999,l:"All"}];
 const xLabel=(i,n)=>{if(n<=8)return true;if(i===0||i===n-1)return true;const step=n<=14?2:n<=20?3:n<=30?4:6;return i%step===0};
 const dotR=n=>n>18?2.5:n>10?3:4;
@@ -471,7 +497,7 @@ function App(){
   const fabTimerRef=useRef(null);
   const longPressedRef=useRef(false);
   const swipeRef=useRef({x:0,y:0,t:0,active:false});
-  useEffect(()=>{try{const r=localStorage.getItem("vb-v10");if(r){let parsed=JSON.parse(r);if(!parsed.accounts)parsed.accounts=[{id:"acc_main",name:"Cheque Account",type:"cheque",balance:0,color:"#00E5A0",icon:"🏦"}];if(!parsed.debts)parsed.debts=[];if(!parsed.mode)parsed.mode="simple";if(!parsed.nudgeShown)parsed.nudgeShown={standard:false,power:false};parsed=migrateOpeningBalances(parsed);parsed=reconcileAccounts(parsed);setD(parsed);__vb_track('store','load',{size:r.length,source:'restored',mode:parsed.mode})}else{const demo=initD();demo.accounts=(demo.accounts||[]).map(acc=>{const txSum=(demo.txs||[]).filter(t=>t.accountId===acc.id).reduce((s,t)=>s+t.amt,0);return{...acc,openingBalance:acc.balance-txSum}});demo.mode="simple";demo.nudgeShown={standard:false,power:false};setD(demo);setOnboard(true);__vb_track('store','load',{source:'onboard'})}}catch(err){setD(initD());__vb_track('err','localStorage.getItem',{msg:String(err)})}setLd(false);setTimeout(()=>setReady(true),80)},[]);
+  useEffect(()=>{try{const r=localStorage.getItem("vb-v10");if(r){let parsed=JSON.parse(r);if(!parsed.accounts)parsed.accounts=[{id:"acc_main",name:"Cheque Account",type:"cheque",balance:0,color:"#00E5A0",icon:"🏦"}];if(!parsed.debts)parsed.debts=[];if(!parsed.receivables)parsed.receivables=[];if(!parsed.rules)parsed.rules=[];if(!parsed.mode)parsed.mode="simple";if(!parsed.nudgeShown)parsed.nudgeShown={standard:false,power:false};parsed=migrateOpeningBalances(parsed);parsed=reconcileAccounts(parsed);setD(parsed);__vb_track('store','load',{size:r.length,source:'restored',mode:parsed.mode})}else{const demo=initD();demo.accounts=(demo.accounts||[]).map(acc=>{const txSum=(demo.txs||[]).filter(t=>t.accountId===acc.id).reduce((s,t)=>s+t.amt,0);return{...acc,openingBalance:acc.balance-txSum}});demo.mode="power";demo.nudgeShown={standard:true,power:true};setD(demo);__vb_track('store','load',{source:'onboard'})}}catch(err){setD(initD());__vb_track('err','localStorage.getItem',{msg:String(err)})}setLd(false);setTimeout(()=>setReady(true),80)},[]);
   const sv=useCallback((d,skipUndo)=>{
     const safe=reconcileAccounts(d);
     if(!skipUndo){
@@ -494,7 +520,18 @@ function App(){
   useEffect(()=>{const h=()=>setWw(window.innerWidth);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h)},[]);
   const wide=ww>600,cover=ww<380,xwide=ww>=820;
   useEffect(()=>{if(!D||!D.recurring?.length)return;const now=Date.now();let ch=false,posted=[],next={...D,txs:[...D.txs],recurring:D.recurring.map(r=>({...r}))};
-    next.recurring.forEach(rec=>{const iv=rec.freq==="weekly"?6048e5:rec.freq==="biweekly"?12096e5:2592e6;let safety=0;while(rec.nextTs&&rec.nextTs<=now&&safety<12){safety++;const hasDup=next.txs.some(t=>t.payee===rec.payee&&Math.abs(t.ts-rec.nextTs)<iv*.1);if(hasDup){rec.nextTs+=iv;continue}const tx={id:uid(),type:"exp",amt:-Math.abs(rec.amt),desc:rec.payee,payee:rec.payee,eid:rec.eid,subcat:rec.subcat||"",accountId:rec.accountId||"",ts:rec.nextTs};next.txs=[tx,...next.txs];rec.nextTs+=iv;if(!posted.includes(rec.payee))posted.push(rec.payee);ch=true}});if(ch){sv(next);fl(posted.length===1?`Auto-posted: ${posted[0]}`:`Auto-posted ${posted.length} recurring`)}},[D]);
+    next.recurring.forEach(rec=>{
+      if(rec.paused)return;                                  // toggled off
+      if(rec.endTs&&now>rec.endTs)return;                    // date-bounded source that has ended
+      const iv=rec.freq==="weekly"?6048e5:rec.freq==="biweekly"?12096e5:2592e6;const amtAbs=Math.abs(rec.amt);const isInc=!!rec.isIncome;let safety=0;
+      while(rec.nextTs&&rec.nextTs<=now&&safety<12){safety++;
+        if(rec.endTs&&rec.nextTs>rec.endTs){rec.nextTs+=iv;continue}
+        // hardened dedup: same payee + similar amount + (same account if known) within 10% of the interval window
+        const hasDup=next.txs.some(t=>t.payee===rec.payee&&Math.abs(Math.abs(t.amt)-amtAbs)<Math.max(2,amtAbs*0.15)&&(!rec.accountId||(t.accountId||"")===rec.accountId)&&Math.abs(t.ts-rec.nextTs)<iv*.1);
+        if(hasDup){rec.nextTs+=iv;continue}
+        const tx={id:uid(),type:isInc?"inc":"exp",amt:isInc?amtAbs:-amtAbs,desc:rec.payee,payee:rec.payee,eid:isInc?"_inc":rec.eid,subcat:rec.subcat||"",accountId:rec.accountId||"",ts:rec.nextTs};
+        next.txs=[tx,...next.txs];if(isInc)next.unal=(next.unal||0)+amtAbs;rec.nextTs+=iv;if(!posted.includes(rec.payee))posted.push(rec.payee);ch=true}
+    });if(ch){sv(next);fl(posted.length===1?`Auto-posted: ${posted[0]}`:`Auto-posted ${posted.length} recurring`)}},[D]);
   // Budget rollover — on new month, carry forward unspent/overspent from previous month(s)
   useEffect(()=>{if(!D)return;const curMonth=mK(Date.now());const lastMonth=D.lastRolloverMonth;if(!lastMonth||lastMonth>=curMonth)return;
     // Walk through each missed month sequentially to cascade rollover correctly
@@ -539,18 +576,18 @@ function App(){
   const G=D.theme==="dark";
   // Current month — always used for budget remaining, balance, health score, expense guard, transfers
   const curTxs=filterTxByPeriod(D.txs,"month");
-  const curSpent=id=>curTxs.filter(t=>t.eid===id&&t.type==="exp").reduce((s,t)=>s+Math.abs(t.amt),0);
+  const curSpent=id=>curTxs.filter(t=>t.eid===id&&isExpTx(t)).reduce((s,t)=>s+Math.abs(t.amt),0);
   const rem=id=>{const e=D.envs.find(x=>x.id===id);return e?(e.budget+(e.rollover||0))-curSpent(id):0};
   const allRem=D.envs.reduce((s,e)=>s+rem(e.id),0);const totalBal=allRem+D.unal;
-  const curIn=curTxs.filter(t=>t.type==="inc").reduce((s,t)=>s+t.amt,0);const curEx=curTxs.filter(t=>t.type==="exp").reduce((s,t)=>s+Math.abs(t.amt),0);
+  const curIn=curTxs.filter(isIncTx).reduce((s,t)=>s+t.amt,0);const curEx=curTxs.filter(isExpTx).reduce((s,t)=>s+Math.abs(t.amt),0);
   // Health score — always current month
   const bEnvs=D.envs.filter(e=>e.budget>0);const sRate=curIn>0?((curIn-curEx)/curIn):0;const adh=bEnvs.length>0?bEnvs.filter(e=>rem(e.id)>=0).length/bEnvs.length:0;
   const gProg=D.goals.length>0?D.goals.reduce((s,g)=>s+(g.target>0?cl(g.saved/g.target,0,1):0),0)/D.goals.length:0;
   const hs=Math.round(cl(sRate,0,1)*35+adh*35+gProg*30);
   // Period-filtered — for spending display, donut, reports, recent list
   const pTxs=filterTxByPeriod(D.txs,period);
-  const spent=id=>pTxs.filter(t=>t.eid===id&&t.type==="exp").reduce((s,t)=>s+Math.abs(t.amt),0);
-  const totIn=pTxs.filter(t=>t.type==="inc").reduce((s,t)=>s+t.amt,0);const totEx=pTxs.filter(t=>t.type==="exp").reduce((s,t)=>s+Math.abs(t.amt),0);
+  const spent=id=>pTxs.filter(t=>t.eid===id&&isExpTx(t)).reduce((s,t)=>s+Math.abs(t.amt),0);
+  const totIn=pTxs.filter(isIncTx).reduce((s,t)=>s+t.amt,0);const totEx=pTxs.filter(isExpTx).reduce((s,t)=>s+Math.abs(t.amt),0);
   const mw=xwide?580:wide?720:460;
   const mode=D.mode||"simple";const cs=feat=>canSee(mode,feat);
   const p={D,sv,fl,ov,G,wide,cover,xwide,spent,rem,setOv:setOvSafe,selE,setSelE,setTab,allRem,totIn,totEx,hs,totalBal,period,setPeriod,pTxs,mode,cs,closeOv,ovClosing,ovSwap};
@@ -603,7 +640,7 @@ function App(){
       <span>{toast}</span>
       {cs("undo")&&canUndo&&undoStack.current.length>0&&<button onClick={undo} style={{background:A,color:"#0a0b0f",border:"none",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:800,fontFamily:F2,cursor:"pointer",whiteSpace:"nowrap",letterSpacing:.3,...cT}}>Undo</button>}
     </div>}
-    {ov?.t==="addTx"&&<AddTxOv {...p} initType={ov.initType}/>}{ov?.t==="editTx"&&<EditTxOv {...p}/>}{cs("splitTx")&&ov?.t==="splitTx"&&<SplitTxOv {...p}/>}{cs("search")&&ov?.t==="search"&&<SearchOv {...p}/>}{cs("fill")&&ov?.t==="fill"&&<FillOv {...p}/>}{ov?.t==="editEnv"&&<EditOv {...p}/>}{ov?.t==="addEnv"&&<AddEnvOv {...p}/>}{cs("addGoal")&&ov?.t==="addGoal"&&<AddGoalOv {...p}/>}{cs("fundGoal")&&ov?.t==="fundGoal"&&<FundOv {...p}/>}{cs("addRecurring")&&ov?.t==="addRecurring"&&<AddRecOv {...p}/>}{cs("transfer")&&ov?.t==="transfer"&&<XferOv {...p}/>}{cs("csvImport")&&ov?.t==="import"&&<ImportOv {...p}/>}{cs("calendar")&&ov?.t==="calendar"&&<CalendarOv {...p}/>}{cs("addDebt")&&ov?.t==="addDebt"&&<AddDebtOv {...p}/>}{cs("payDebt")&&ov?.t==="payDebt"&&<PayDebtOv {...p}/>}{ov?.t==="settings"&&<SetOv {...p}/>}{ov?.t==="graph"&&<GraphOv {...p}/>}
+    {ov?.t==="addTx"&&<AddTxOv {...p} initType={ov.initType}/>}{ov?.t==="editTx"&&<EditTxOv {...p}/>}{cs("splitTx")&&ov?.t==="splitTx"&&<SplitTxOv {...p}/>}{cs("search")&&ov?.t==="search"&&<SearchOv {...p}/>}{cs("fill")&&ov?.t==="fill"&&<FillOv {...p}/>}{ov?.t==="editEnv"&&<EditOv {...p}/>}{ov?.t==="addEnv"&&<AddEnvOv {...p}/>}{cs("addGoal")&&ov?.t==="addGoal"&&<AddGoalOv {...p}/>}{cs("fundGoal")&&ov?.t==="fundGoal"&&<FundOv {...p}/>}{cs("addRecurring")&&ov?.t==="addRecurring"&&<AddRecOv {...p}/>}{cs("transfer")&&ov?.t==="transfer"&&<XferOv {...p}/>}{cs("acctXfer")&&ov?.t==="acctXfer"&&<AcctXferOv {...p}/>}{cs("budgetTable")&&ov?.t==="budget"&&<BudgetOv {...p}/>}{cs("payeeRules")&&ov?.t==="rules"&&<RulesOv {...p}/>}{cs("subscriptions")&&ov?.t==="subs"&&<SubsOv {...p}/>}{cs("lending")&&ov?.t==="lending"&&<LendingOv {...p}/>}{cs("csvImport")&&ov?.t==="import"&&<ImportOv {...p}/>}{cs("calendar")&&ov?.t==="calendar"&&<CalendarOv {...p}/>}{cs("addDebt")&&ov?.t==="addDebt"&&<AddDebtOv {...p}/>}{cs("payDebt")&&ov?.t==="payDebt"&&<PayDebtOv {...p}/>}{ov?.t==="settings"&&<SetOv {...p}/>}{ov?.t==="graph"&&<GraphOv {...p}/>}
     {__VB_DEBUG&&<DebugOverlay D={D}/>}
     {onboard&&<OnboardOv D={D} sv={sv} G={G} fl={fl} onDone={closeOnboard} closing={onboardClosing}/>}
   </div>
@@ -702,9 +739,9 @@ function Dash({D,sv,fl,G,wide,cover,xwide,spent,rem,setOv,setTab,setSelE,allRem,
   const cogTapsRef=useRef({n:0,t:0});
   const cogActivate=()=>{const now=Date.now();const r=cogTapsRef.current;if(now-r.t>2000)r.n=0;r.n+=1;r.t=now;if(r.n>=5){r.n=0;if(__VB_DEBUG){window.__vb.disable()}else{window.__vb.enable()}}};
   const t1=G?"#fff":"#1a1a2e",t2=G?"#888":"#777",t3=G?"#444":"#bbb",cd=G?"rgba(255,255,255,.04)":"rgba(255,255,255,.9)",cb=G?"rgba(255,255,255,.06)":"rgba(0,0,0,.06)";
-  const catS={};pTxs.filter(t=>t.type==="exp").forEach(t=>{catS[t.eid]=(catS[t.eid]||0)+Math.abs(t.amt)});
+  const catS={};pTxs.filter(isExpTx).forEach(t=>{catS[t.eid]=(catS[t.eid]||0)+Math.abs(t.amt)});
   const sCats=Object.entries(catS).sort((a,b)=>b[1]-a[1]).slice(0,6);
-  const byM={};D.txs.filter(t=>t.type==="exp").forEach(t=>{const k=mK(t.ts);byM[k]=(byM[k]||0)+Math.abs(t.amt)});
+  const byM={};D.txs.filter(isExpTx).forEach(t=>{const k=mK(t.ts);byM[k]=(byM[k]||0)+Math.abs(t.amt)});
   const trendN=period==="year"||period==="all"?12:6;
   const months=Object.entries(byM).sort((a,b)=>a[0].localeCompare(b[0])).slice(-trendN);const maxM=months.reduce((m,[,v])=>Math.max(m,v),1);
   const dR=54,dC=2*Math.PI*dR;let dSegs=[],dCum=0;
@@ -740,6 +777,36 @@ function Dash({D,sv,fl,G,wide,cover,xwide,spent,rem,setOv,setTab,setSelE,allRem,
         <div style={{textAlign:"right"}}><div style={{fontSize:N?20:24,fontWeight:900,fontFamily:F,color:A,lineHeight:1,textShadow:G?`0 0 16px ${A}66`:"none"}}>{fmt(allRem/daysLeft())}</div><div style={{fontSize:9,color:t3,marginTop:2}}>per day</div></div>
       </LPDiv>}
     </Cd>}
+    {/* ── This-month plan: surplus/deficit + SA-budget tools ── */}
+    {cs("budgetTable")&&(()=>{
+      const cur=filterTxByPeriod(D.txs,"month");
+      const cIn=cur.filter(isIncTx).reduce((s,t)=>s+t.amt,0);
+      const cEx=cur.filter(isExpTx).reduce((s,t)=>s+Math.abs(t.amt),0);
+      const net=cIn-cEx;
+      const main=(D.accounts||[]).find(a=>a.id==="acc_main")||D.accounts?.[0];
+      const lowBal=main&&main.minBuffer>0&&main.balance<main.minBuffer;
+      const feeMo=cur.filter(t=>t.kind==="fee").reduce((s,t)=>s+Math.abs(t.amt),0);
+      const tools=[["📋","Budget","budget","budgetTable"],["⇄","Move money","acctXfer","acctXfer"],["📥","Import","import","csvImport"],["🔁","Subs","subs","subscriptions"],["🤝","Lending","lending","lending"],["🏷","Rules","rules","payeeRules"]].filter(t=>cs(t[3]));
+      return(<Cd G={G} d={.05} s={{marginBottom:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <div style={{fontSize:9,color:t3,fontWeight:600,letterSpacing:1}}>THIS MONTH</div>
+          <button onClick={()=>setOv({t:"budget"})} style={{background:"none",border:"none",color:A,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:F2,...lT}}>Budget table →</button>
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
+          <span style={{fontSize:12,color:t2,fontWeight:600}}>Income − Spending</span>
+          <span style={{fontSize:24,fontWeight:900,fontFamily:F,color:net>=0?A:"#EF4444",textShadow:G?`0 0 16px ${(net>=0?A:"#EF4444")}55`:"none"}}>{fmt(net)}</span>
+        </div>
+        <div style={{display:"flex",gap:14,marginTop:6}}>
+          <span style={{fontSize:10,color:t3}}>In <b style={{color:A}}>{fS(cIn)}</b></span>
+          <span style={{fontSize:10,color:t3}}>Out <b style={{color:"#EF4444"}}>{fS(cEx)}</b></span>
+          {feeMo>0&&<span style={{fontSize:10,color:t3}}>Fees <b style={{color:"#EF4444"}}>{fS(feeMo)}</b></span>}
+        </div>
+        {lowBal&&<div style={{marginTop:8,padding:"7px 10px",borderRadius:8,background:"rgba(245,158,11,.12)",border:"1px solid rgba(245,158,11,.3)",fontSize:10,color:"#F59E0B",fontWeight:600}}>⚠ {main.name} ({fmt(main.balance)}) is below your {fmt(main.minBuffer)} buffer — watch for decline fees.</div>}
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:10}}>
+          {tools.map(([ic,lbl,t])=>(<button key={t} onClick={()=>setOv({t})} style={{flex:"1 1 28%",minWidth:88,padding:"8px 6px",borderRadius:8,border:`1px solid ${G?"rgba(255,255,255,.08)":"rgba(0,0,0,.08)"}`,background:G?"rgba(255,255,255,.03)":"#fff",color:t1,fontSize:11,fontWeight:600,fontFamily:F2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5,...cT}}><span style={{fontSize:13}}>{ic}</span>{lbl}</button>))}
+        </div>
+      </Cd>);
+    })()}
     {/* Simple mode: compact envelope overview on dashboard */}
     {mode==="simple"&&D.envs.filter(e=>e.budget>0).length>0&&<Cd G={G} d={.1} s={{marginBottom:12}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -893,7 +960,7 @@ function Dash({D,sv,fl,G,wide,cover,xwide,spent,rem,setOv,setTab,setSelE,allRem,
       <div style={{fontSize:9,color:t3,fontWeight:600,letterSpacing:1,marginBottom:8}}>RECENT TRANSACTIONS</div>
       {rTx.map((tx,i)=>{const env=D.envs.find(e=>e.id===tx.eid);const isSplit=!!tx.splitGroup;const isDebt=!!tx.debtId;return (
         <LPDiv key={tx.id} className="vb-tappable" onTap={()=>isDebt?setOv({t:"payDebt",debtId:tx.debtId}):isSplit?setOv({t:"splitTx",splitGroup:tx.splitGroup}):setOv({t:"editTx",txId:tx.id})} onLong={()=>setOv({t:"graph",graphType:"payeeHistory",payee:tx.payee||tx.desc})} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:i<rTx.length-1?`1px solid ${cb}`:"none",animation:`fu .4s ease ${.5+i*.04}s both`,cursor:"pointer"}}>
-          <div style={{width:30,height:30,borderRadius:8,background:`${env?.color||A}15`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:env?.color||A,fontWeight:700}}>{tx.type==="inc"?"↗":"↘"}</div>
+          <div style={{width:30,height:30,borderRadius:8,background:`${env?.color||A}15`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:env?.color||A,fontWeight:700}}>{tx.type==="inc"?"↗":tx.type==="xfer"?"⇄":"↘"}</div>
           <div style={{flex:1,minWidth:0}}><div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:12,fontWeight:600,color:t1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{tx.payee||tx.desc}</span>{isSplit&&<span style={{fontSize:7,color:"#A78BFA",fontWeight:700,background:"rgba(167,139,250,.12)",padding:"1px 4px",borderRadius:3,flexShrink:0}}>SPLIT</span>}{isDebt&&<span style={{fontSize:7,color:"#EF4444",fontWeight:700,background:"rgba(239,68,68,.12)",padding:"1px 4px",borderRadius:3,flexShrink:0}}>DEBT</span>}</div><div style={{fontSize:9,color:t3}}>{rd(tx.ts)}{env?` · ${env.name}`:""}{isDebt?" · Debt Payment":""}</div>{tx.note&&<div style={{fontSize:9,color:t2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginTop:1}}>📝 {tx.note}</div>}</div>
           <span style={{fontSize:13,fontWeight:700,color:tx.type==="inc"?A:t1}}>{tx.amt>=0?"+":""}{fmt(tx.amt)}</span>
         </LPDiv>)})}
@@ -1019,7 +1086,7 @@ function RepTab({D,sv,fl,G,totEx,totIn,hs,period,setPeriod,pTxs,setOv,cs:canSeeF
   const dlpRef=useRef(null);
   const dlpStart=(e)=>{const eid=e.target.getAttribute("data-eid");if(!eid)return;clearTimeout(dlpRef.current);dlpRef.current=setTimeout(()=>{dlpRef.current=null;try{navigator.vibrate(15)}catch{}setOv({t:"graph",graphType:"envTrend",eid})},400)};
   const dlpCancel=()=>{clearTimeout(dlpRef.current);dlpRef.current=null};
-  const catS={};pTxs.filter(t=>t.type==="exp").forEach(t=>{catS[t.eid]=(catS[t.eid]||0)+Math.abs(t.amt)});const sorted=Object.entries(catS).sort((a,b)=>b[1]-a[1]);
+  const catS={};pTxs.filter(isExpTx).forEach(t=>{catS[t.eid]=(catS[t.eid]||0)+Math.abs(t.amt)});const sorted=Object.entries(catS).sort((a,b)=>b[1]-a[1]);
   const dR=58,dC=2*Math.PI*dR;let segs=[],cum=0;sorted.forEach(([eid,amt])=>{const env=D.envs.find(e=>e.id===eid);const name=env?.name||(eid==="_debt"?"Debt Payments":eid==="_inc"?"Income":"Other");const color=env?.color||(eid==="_debt"?"#EF4444":"#666");const pct=totEx>0?amt/totEx:0;segs.push({color,off:cum*dC,len:pct*dC,name,pct:Math.round(pct*100),amt,eid});cum+=pct});
   // Build monthly data for all months in dataset
   const allMonths={};D.txs.forEach(t=>{const mk=mK(t.ts);if(!allMonths[mk])allMonths[mk]={inc:0,exp:{}}; if(t.type==="inc")allMonths[mk].inc+=t.amt; else{allMonths[mk].exp[t.eid]=(allMonths[mk].exp[t.eid]||0)+Math.abs(t.amt)}});
@@ -1043,7 +1110,7 @@ function RepTab({D,sv,fl,G,totEx,totIn,hs,period,setPeriod,pTxs,setOv,cs:canSeeF
   const numMonths=Math.max(mKeys.length,1);
   const averages=D.envs.filter(e=>e.budget>0).map(e=>{const total=mKeys.reduce((s,mk)=>s+(allMonths[mk]?.exp[e.id]||0),0);return{name:e.name,color:e.color,avg:total/numMonths,budget:e.budget}});
   // 4) Top payees
-  const payeeMap={};pTxs.filter(t=>t.type==="exp").forEach(t=>{const p=t.payee||t.desc||"?";payeeMap[p]=(payeeMap[p]||0)+Math.abs(t.amt)});
+  const payeeMap={};pTxs.filter(isExpTx).forEach(t=>{const p=t.payee||t.desc||"?";payeeMap[p]=(payeeMap[p]||0)+Math.abs(t.amt)});
   const topPayees=Object.entries(payeeMap).sort((a,b)=>b[1]-a[1]).slice(0,8);const topMax=topPayees.length>0?topPayees[0][1]:1;
   // 5) Savings rate trend
   const savingsData=sparkKeys.map(mk=>{const d=allMonths[mk];const inc=d?.inc||0;const exp=Object.values(d?.exp||{}).reduce((s,v)=>s+v,0);const rate=inc>0?Math.round(((inc-exp)/inc)*100):0;return{mk,rate:cl(rate,-100,100)}});
@@ -2034,6 +2101,7 @@ function EditTxOv({D,sv,fl,G,rem,ov,setOv,cs,closeOv,ovClosing,ovSwap}){
   if(!tx)return null;
   if(tx.splitGroup)return null;
   if(tx.debtId)return null;
+  if(tx.type==="xfer")return null;
   const selE=D.envs.find(e=>e.id===eid);
   // Inline validation — warn but don't block over-budget
   const v=parseFloat(amt)||0;
@@ -2279,7 +2347,7 @@ function SearchOv({D,G,pTxs,setOv,period,closeOv,ovClosing,ovSwap}){
       {results.length===0&&<div style={{padding:24,textAlign:"center",color:t3,fontSize:13,animation:"fi .3s ease"}}>{q?"No matches":"No transactions"}</div>}
       {results.map((tx,i)=>{const env=D.envs.find(e=>e.id===tx.eid);const isSplit=!!tx.splitGroup;const isDebt=!!tx.debtId;return(
         <LPDiv key={tx.id} className="vb-tappable" onTap={()=>isDebt?setOv({t:"payDebt",debtId:tx.debtId}):isSplit?setOv({t:"splitTx",splitGroup:tx.splitGroup}):setOv({t:"editTx",txId:tx.id})} onLong={()=>setOv({t:"graph",graphType:"payeeHistory",payee:tx.payee||tx.desc})} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:`1px solid ${G?"rgba(255,255,255,.04)":"rgba(0,0,0,.04)"}`,cursor:"pointer",animation:`fu .3s ease ${Math.min(i,15)*.03}s both`}}>
-          <div style={{width:28,height:28,borderRadius:7,background:`${env?.color||A}15`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:env?.color||A,fontWeight:700}}>{tx.type==="inc"?"↗":"↘"}</div>
+          <div style={{width:28,height:28,borderRadius:7,background:`${env?.color||A}15`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:env?.color||A,fontWeight:700}}>{tx.type==="inc"?"↗":tx.type==="xfer"?"⇄":"↘"}</div>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:12,fontWeight:600,color:t1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{tx.payee||tx.desc}</span>{isSplit&&<span style={{fontSize:7,color:"#A78BFA",fontWeight:700,background:"rgba(167,139,250,.12)",padding:"1px 4px",borderRadius:3,flexShrink:0}}>SPLIT</span>}{isDebt&&<span style={{fontSize:7,color:"#EF4444",fontWeight:700,background:"rgba(239,68,68,.12)",padding:"1px 4px",borderRadius:3,flexShrink:0}}>DEBT</span>}</div>
             <div style={{fontSize:9,color:t3}}>{rd(tx.ts)}{env?` · ${env.name}`:""}{tx.subcat?` · ${tx.subcat}`:""}</div>
@@ -2292,9 +2360,50 @@ function SearchOv({D,G,pTxs,setOv,period,closeOv,ovClosing,ovSwap}){
   </Ov>);
 }
 
+/* ═══ CAPITEC / RULE-BASED AUTO-CATEGORISATION ═══ */
+// Classify an imported line into {type, eid, kind, sub, ruleId}. Saved rules win, then Capitec description patterns, then sign + keyword.
+function classifyImport(desc,amt,D){
+  const dl=(desc||"").toLowerCase();
+  for(const r of (D.rules||[])){if(!r.match)continue;if(!dl.includes(r.match.toLowerCase()))continue;
+    if(r.kind==="transfer")return{type:"xfer",eid:"_xfer",kind:"transfer",ruleId:r.id};
+    if(r.kind==="fee")return{type:"exp",eid:r.eid||"bank_fees",kind:"fee",ruleId:r.id};
+    if(r.kind==="lending")return amt>=0?{type:"inc",eid:"_inc",kind:"lending_repay",ruleId:r.id}:{type:"exp",eid:r.eid||"lending",kind:"lending_out",ruleId:r.id};
+    if(r.kind==="income")return{type:"inc",eid:"_inc",ruleId:r.id};
+    if(r.kind==="subscription")return{type:"exp",eid:r.eid||"subs",kind:"subscription",sub:r.sub||"",ruleId:r.id};
+    if(r.kind==="expense")return{type:"exp",eid:r.eid||"",sub:r.sub||"",ruleId:r.id};
+  }
+  if(/banking app transfer|live better round-?up|round-?up transfer|transfer to|transfer from|inter-?account/i.test(desc))return{type:"xfer",eid:"_xfer",kind:"transfer"};
+  if(/recurring card purchase/i.test(desc))return{type:"exp",eid:"subs",kind:"subscription"};
+  if(/insufficient funds|decline fee|limit exceeded fee|international transaction fee|monthly (account )?fee|admin fee|\bfee\b/i.test(desc))return{type:"exp",eid:"bank_fees",kind:"fee"};
+  const type=amt>=0?"inc":"exp";let eid=type==="inc"?"_inc":"";
+  if(type==="exp"){for(const env of D.envs){if((env.subcats||[]).some(sc=>dl.includes(sc.toLowerCase()))||dl.includes(env.name.toLowerCase())){eid=env.id;break}}}
+  return{type,eid};
+}
+// Best-effort parse of pasted / PDF statement text into {dateStr,desc,amt} rows.
+function parseStatementText(txt){
+  const out=[];const lines=(txt||"").split(/\r?\n/);
+  const dateRe=/(\d{4}[-/]\d{1,2}[-/]\d{1,2})|(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/;
+  const amtRe=/-?\(?\s*R?\s*\d[\d  .,]*\d\)?\s*-?/g;
+  for(let raw of lines){const line=raw.trim();if(!line)continue;
+    const dm=line.match(dateRe);if(!dm)continue;
+    const nums=line.match(amtRe);if(!nums||!nums.length)continue;
+    // amount = last money-looking token with a decimal, else last token
+    let amtTok=nums.filter(n=>/[.,]\d{2}\b/.test(n)).pop()||nums.pop();
+    const neg=/^\s*-/.test(amtTok)||/\)\s*$/.test(amtTok)||/-\s*$/.test(amtTok)||/\bDR\b|debit/i.test(line);
+    let val=parseFloat(amtTok.replace(/[()R\s]/g,"").replace(/(\d)[ ,](?=\d{3}\b)/g,"$1").replace(/\.(?=\d{3}\b)/g,"").replace(",","."));
+    if(isNaN(val))continue;val=Math.abs(val)*(neg?-1:1);
+    let desc=line.replace(dm[0],"").replace(amtTok,"").replace(/\s{2,}/g," ").replace(/^[\s|,;-]+|[\s|,;-]+$/g,"").trim();
+    if(!desc)desc="Statement line";
+    out.push({dateStr:dm[0],desc,amtRaw:String(val)});
+  }
+  return out;
+}
 function ImportOv({D,sv,fl,G,setOv,closeOv,ovClosing,ovSwap}){
   const[step,setStep]=useState(1);
+  const[mode,setMode]=useState("paste");      // paste | csv | pdf
   const[raw,setRaw]=useState("");
+  const[pasteTxt,setPasteTxt]=useState("");
+  const[pdfBusy,setPdfBusy]=useState(false);
   const[rows,setRows]=useState([]);
   const[headers,setHeaders]=useState([]);
   const[dateCol,setDateCol]=useState(0);
@@ -2302,22 +2411,56 @@ function ImportOv({D,sv,fl,G,setOv,closeOv,ovClosing,ovSwap}){
   const[amtCol,setAmtCol]=useState(2);
   const[accId,setAccId]=useState(D.accounts?.[0]?.id||"");
   const[parsed,setParsed]=useState([]);
-  const[envMap,setEnvMap]=useState({});
+  const[envMap,setEnvMap]=useState({});       // txId -> eid override
+  const[typeMap,setTypeMap]=useState({});      // txId -> type override (exp/inc/xfer)
+  const[skipMap,setSkipMap]=useState({});      // txId -> true to skip
+  const[ruleMap,setRuleMap]=useState({});      // txId -> true to save a payee rule
   const[parseWarns,setParseWarns]=useState({skipped:0,dateFallback:0,dupes:0});
   const t1=G?"#fff":"#1a1a2e",t3=G?"#444":"#bbb";
+  const acc=D.accounts?.find(a=>a.id===accId);
+  // build {id,type,amt,desc,eid,kind,sub,_isDup} from generic {dateStr,desc,amt} rows using the classifier
+  const buildParsed=(genRows)=>{
+    let skipped=0,dateFallback=0,dupes=0;
+    const out=genRows.map(gr=>{const desc=(gr.desc||"").trim();const amt=parseAmt(gr.amtRaw);
+      if(!desc||isNaN(amt)){skipped++;return null}
+      let ts;try{const parts=(gr.dateStr||"").split(/[-/.]/);if(parts.length===3){const[a,b,c]=parts;ts=a.length===4?new Date(`${a}-${b.padStart(2,"0")}-${c.padStart(2,"0")}T12:00:00`).getTime():new Date(`${c.length===2?"20"+c:c}-${b.padStart(2,"0")}-${a.padStart(2,"0")}T12:00:00`).getTime()}}catch{}
+      if(!ts||isNaN(ts)){ts=Date.now();dateFallback++}
+      const cls=classifyImport(desc,amt,D);
+      // hardened dedup: amount + payee + account within a day
+      const isDup=D.txs.some(t=>Math.abs(t.ts-ts)<864e5&&Math.abs(Math.abs(t.amt)-Math.abs(amt))<0.5&&(t.payee||t.desc||"").toLowerCase()===desc.toLowerCase()&&(!accId||(t.accountId||"")===accId));
+      if(isDup)dupes++;
+      const type=cls.type||(amt>=0?"inc":"exp");
+      const signed=type==="inc"?Math.abs(amt):type==="xfer"?amt:-Math.abs(amt);
+      return{id:uid(),type,amt:signed,desc,payee:desc,eid:type==="exp"?(cls.eid||""):(type==="xfer"?"_xfer":"_inc"),subcat:cls.sub||"",kind:cls.kind,note:"Imported",accountId:accId||"",ts,_isDup:isDup,_ruleId:cls.ruleId};
+    }).filter(Boolean);
+    setParseWarns({skipped,dateFallback,dupes});
+    // default-skip likely dupes
+    const sk={};out.forEach(t=>{if(t._isDup)sk[t.id]=true});setSkipMap(sk);
+    setParsed(out);setStep(3);
+  };
   const loadFile=(e)=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=(ev)=>{const txt=ev.target.result;setRaw(txt);
     const lines=txt.split(/\r?\n/).filter(l=>l.trim());if(lines.length<2){fl("File too short",true);return}
-    // Detect delimiter from header line only (not full file)
     const headerLine=lines[0];
     const semiCount=(headerLine.match(/;/g)||[]).length;const commaCount=(headerLine.match(/,/g)||[]).length;
     const delim=semiCount>commaCount?";":",";
     const hdr=headerLine.split(delim).map(h=>h.replace(/^"|"$/g,"").trim());setHeaders(hdr);
     const dataRows=lines.slice(1).map(l=>{const cells=[];let cur="",inQ=false;for(let i=0;i<l.length;i++){const c=l[i];if(c==='"')inQ=!inQ;else if(c===delim&&!inQ){cells.push(cur.trim());cur=""}else cur+=c}cells.push(cur.trim());return cells.map(c=>c.replace(/^"|"$/g,""))});
     setRows(dataRows);
-    // Auto-detect columns
     const di=hdr.findIndex(h=>/date|datum/i.test(h));const ai=hdr.findIndex(h=>/amount|amt|bedrag|value/i.test(h));const ni=hdr.findIndex(h=>/desc|payee|narr|omskr|detail/i.test(h));
     if(di>=0)setDateCol(di);if(ni>=0)setDescCol(ni);else if(di>=0)setDescCol(di===0?1:0);if(ai>=0)setAmtCol(ai);
     setStep(2)};r.readAsText(f)};
+  // PDF → text via pdf.js loaded on demand from CDN (client-side, no upload)
+  const loadPdf=async(e)=>{const f=e.target.files[0];if(!f)return;setPdfBusy(true);
+    try{
+      if(!window.pdfjsLib){await new Promise((res,rej)=>{const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";s.onload=res;s.onerror=rej;document.head.appendChild(s)});if(window.pdfjsLib)window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"}
+      const buf=await f.arrayBuffer();const pdf=await window.pdfjsLib.getDocument({data:buf}).promise;let txt="";
+      for(let i=1;i<=pdf.numPages;i++){const pg=await pdf.getPage(i);const tc=await pg.getTextContent();
+        // group items into lines by y position
+        let lastY=null,line="";const lines=[];tc.items.forEach(it=>{const y=it.transform[5];if(lastY!==null&&Math.abs(y-lastY)>4){lines.push(line);line=""}line+=(line?" ":"")+it.str;lastY=y});if(line)lines.push(line);txt+=lines.join("\n")+"\n"}
+      setRaw(txt);const gr=parseStatementText(txt);if(!gr.length){fl("No transactions found in PDF — try paste",true);setPdfBusy(false);return}
+      buildParsed(gr);
+    }catch(err){fl("PDF read failed — try paste/CSV",true);__vb_track('err','pdf.parse',{msg:String(err)})}
+    setPdfBusy(false)};
   // Parse amount handling European formats: "1 234,56" or "1.234,56" or "1,234.56" or "-R1 234.56"
   const parseAmt=(raw)=>{
     let s=(raw||"").replace(/[^\d.,\-\s]/g,"").trim();
@@ -2338,38 +2481,38 @@ function ImportOv({D,sv,fl,G,setOv,closeOv,ovClosing,ovSwap}){
     s=s.replace(/\s/g,"");
     const v=parseFloat(s);return isNaN(v)?NaN:(neg?-v:v);
   };
-  const doParse=()=>{
-    let skipped=0,dateFallback=0,dupes=0;
-    const txs=rows.map(r=>{const dateStr=r[dateCol]||"";const desc=(r[descCol]||"").trim();const amt=parseAmt(r[amtCol]);
-      if(!desc||isNaN(amt)){skipped++;return null}
-      let ts;try{const parts=dateStr.split(/[-/]/);if(parts.length===3){const[a,b,c]=parts;ts=a.length===4?new Date(`${a}-${b.padStart(2,"0")}-${c.padStart(2,"0")}T12:00:00`).getTime():new Date(`${c.length===2?"20"+c:c}-${b.padStart(2,"0")}-${a.padStart(2,"0")}T12:00:00`).getTime()}}catch{}
-      if(!ts||isNaN(ts)){ts=Date.now();dateFallback++}
-      // Duplicate detection: check existing txs for same date+amount+payee
-      const isDup=D.txs.some(t=>Math.abs(t.ts-ts)<864e5&&Math.abs(Math.abs(t.amt)-Math.abs(amt))<0.01&&(t.payee||t.desc)===desc);
-      if(isDup)dupes++;
-      const type=amt>=0?"inc":"exp";
-      // Auto-match envelope by keyword
-      const dl=desc.toLowerCase();let eid=type==="inc"?"_inc":"";
-      if(type==="exp"){for(const env of D.envs){if(env.subcats?.some(sc=>dl.includes(sc.toLowerCase()))){eid=env.id;break}if(dl.includes(env.name.toLowerCase())){eid=env.id;break}}}
-      return{id:uid(),type,amt:type==="exp"?-Math.abs(amt):Math.abs(amt),desc,payee:desc,eid,subcat:"",note:"Imported",accountId:accId||"",ts,_isDup:isDup};
-    }).filter(Boolean);
-    setParseWarns({skipped,dateFallback,dupes});
-    setParsed(txs);setStep(3)};
+  const doParse=()=>{const gen=rows.map(r=>({dateStr:r[dateCol]||"",desc:(r[descCol]||"").trim(),amtRaw:r[amtCol]}));buildParsed(gen)};
+  const doPaste=()=>{const gen=parseStatementText(pasteTxt);if(!gen.length){fl("No transactions found — check the pasted text",true);return}buildParsed(gen)};
   const doImport=()=>{
-    if(parsed.length===0)return;
-    const final=parsed.map(tx=>{const{_isDup,...clean}=tx;return{...clean,eid:envMap[tx.id]||tx.eid}});
-    let next={...D,txs:[...final,...D.txs]};
-    const incAmt=final.filter(t=>t.type==="inc").reduce((s,t)=>s+t.amt,0);if(incAmt>0)next.unal=(next.unal||0)+incAmt;
-    sv(next);fl(`Imported ${final.length} transactions`);closeOv()};
+    const keep=parsed.filter(tx=>!skipMap[tx.id]);
+    if(!keep.length){fl("Nothing selected to import",true);return}
+    let newRules=[...(D.rules||[])];
+    const final=keep.map(tx=>{const{_isDup,_ruleId,...clean}=tx;
+      const ty=typeMap[tx.id]||tx.type;const eid=envMap[tx.id]||tx.eid;const absA=Math.abs(clean.amt);
+      let amt=ty==="inc"?absA:ty==="exp"?-absA:clean.amt; // xfer keeps its imported sign
+      const fin={...clean,type:ty,amt,eid:ty==="exp"?eid:(ty==="xfer"?"_xfer":"_inc")};
+      if(ty!=="exp")fin.subcat="";
+      if(ruleMap[tx.id]){const matchStr=(tx.payee||"").replace(/^(immediate payment|external payshap payment|recurring card purchase|banking app transfer)[:\s]*/i,"").trim()||tx.payee;
+        const rk=ty==="xfer"?"transfer":ty==="inc"?"income":fin.kind==="fee"?"fee":fin.kind==="subscription"?"subscription":fin.kind==="lending_out"||fin.kind==="lending_repay"?"lending":"expense";
+        if(matchStr&&!newRules.some(r=>r.match&&r.match.toLowerCase()===matchStr.toLowerCase()))newRules.push({id:uid(),match:matchStr,kind:rk,...(ty==="exp"?{eid}:{})});}
+      return fin;});
+    let next={...D,txs:[...final,...D.txs],rules:newRules};
+    const incAmt=final.filter(t=>t.type==="inc"&&t.kind!=="lending_repay").reduce((s,t)=>s+t.amt,0);if(incAmt>0)next.unal=(next.unal||0)+incAmt;
+    const repay=final.filter(t=>t.kind==="lending_repay").reduce((s,t)=>s+Math.abs(t.amt),0);
+    if(repay>0&&next.receivables?.length)next.receivables=next.receivables.map((rc,i)=>i===0?{...rc,balance:Math.max(0,rc.balance-repay)}:rc);
+    sv(next);fl(`Imported ${final.length} transaction${final.length>1?"s":""}`);closeOv()};
   const setTxEnv=(txId,eid)=>setEnvMap({...envMap,[txId]:eid});
-  return (<Ov title="Import CSV" onClose={closeOv} closing={ovClosing} ovSwap={ovSwap} G={G}>
-    <Morph show={step===1} maxH={200} ms={250}>
-      <div style={{fontSize:12,color:G?"#888":"#666",marginBottom:12}}>Select a CSV bank statement file from your device. SA banks (FNB, Absa, Capitec, Nedbank, Standard Bank) are all supported.</div>
-      <label style={{display:"block",width:"100%",padding:"24px 16px",borderRadius:10,border:`2px dashed ${G?"rgba(255,255,255,.12)":"rgba(0,0,0,.12)"}`,background:G?"rgba(255,255,255,.02)":"rgba(0,0,0,.02)",textAlign:"center",cursor:"pointer",marginBottom:12}}>
-        <div style={{fontSize:24,marginBottom:6}}>📂</div>
-        <div style={{fontSize:12,fontWeight:600,color:A,fontFamily:F2}}>Tap to select CSV file</div>
-        <input type="file" accept=".csv,.txt" onChange={loadFile} style={{display:"none"}}/>
-      </label>
+  const cycleType=(txId,cur)=>{const order=["exp","inc","xfer"];setTypeMap({...typeMap,[txId]:order[(order.indexOf(typeMap[txId]||cur)+1)%3]})};
+  const kindBadge=(k)=>k==="fee"?["FEE","#EF4444"]:k==="subscription"?["SUB","#6366F1"]:k==="transfer"?["TRANSFER","#A78BFA"]:k==="lending_out"?["LENT","#F97316"]:k==="lending_repay"?["REPAY","#F97316"]:k==="oneoff"?["ONE-OFF","#888"]:null;
+  const acctPicker=(<div><Lbl G={G}>Import into Account</Lbl><div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:6}}>{D.accounts.map(a=>(<button key={a.id} onClick={()=>setAccId(a.id)} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${accId===a.id?A:(G?"rgba(255,255,255,.1)":"#ddd")}`,background:accId===a.id?`${A}15`:(G?"#1a1a2a":"#fff"),color:accId===a.id?A:(G?"#888":"#666"),fontSize:11,fontFamily:F2,cursor:"pointer",display:"flex",alignItems:"center",gap:4,...cT}}><span style={{fontSize:12}}>{a.icon||"🏦"}</span>{a.name}</button>))}</div></div>);
+  return (<Ov title="Import Transactions" onClose={closeOv} closing={ovClosing} ovSwap={ovSwap} G={G}>
+    <Morph show={step===1} maxH={620} ms={250}>
+      <div style={{display:"flex",marginBottom:14,borderRadius:8,overflow:"hidden",border:`1px solid ${G?"rgba(255,255,255,.1)":"#ddd"}`}}>{[["paste","Paste text"],["csv","CSV"],["pdf","PDF"]].map(([k,l])=>(<button key={k} onClick={()=>setMode(k)} style={{flex:1,padding:9,border:"none",fontFamily:F2,fontSize:11,fontWeight:700,cursor:"pointer",background:mode===k?A:(G?"#1a1a2a":"#fff"),color:mode===k?"#0a0b0f":(G?"#888":"#666"),...cT}}>{l}</button>))}</div>
+      <div style={{fontSize:11,color:G?"#888":"#666",marginBottom:10,lineHeight:1.45}}>Capitec descriptions auto-categorise: <b>Banking App Transfer</b> → internal transfer (netted out), <b>Recurring Card Purchase</b> → subscription, <b>Immediate Payment / PayShap</b> → your saved payee rules, fee lines → Bank Fees. Everything is reviewable before import.</div>
+      {acctPicker}
+      <Morph show={mode==="paste"} maxH={400}><Lbl G={G}>Paste statement lines</Lbl><textarea value={pasteTxt} onChange={e=>setPasteTxt(e.target.value)} placeholder={"2026/06/01  Immediate Payment: Landlord  -7620.00\n2026/06/02  Banking App Transfer to Savings  -2500.00\n2026/06/25  Salary  39000.00"} style={{width:"100%",minHeight:130,padding:"10px",borderRadius:8,border:`1px solid ${G?"rgba(255,255,255,.1)":"#ddd"}`,background:G?"rgba(255,255,255,.05)":"#fff",color:t1,fontSize:12,fontFamily:"monospace",resize:"vertical",marginBottom:12,outline:"none"}}/><button onClick={doPaste} disabled={!pasteTxt.trim()} style={{...pb(),background:A,opacity:pasteTxt.trim()?1:.4}}>Parse →</button></Morph>
+      <Morph show={mode==="csv"} maxH={200}><label style={{display:"block",width:"100%",padding:"22px 16px",borderRadius:10,border:`2px dashed ${G?"rgba(255,255,255,.12)":"rgba(0,0,0,.12)"}`,background:G?"rgba(255,255,255,.02)":"rgba(0,0,0,.02)",textAlign:"center",cursor:"pointer",marginBottom:6}}><div style={{fontSize:24,marginBottom:6}}>📂</div><div style={{fontSize:12,fontWeight:600,color:A,fontFamily:F2}}>Tap to select CSV / TXT</div><input type="file" accept=".csv,.txt" onChange={loadFile} style={{display:"none"}}/></label></Morph>
+      <Morph show={mode==="pdf"} maxH={200}><label style={{display:"block",width:"100%",padding:"22px 16px",borderRadius:10,border:`2px dashed ${G?"rgba(255,255,255,.12)":"rgba(0,0,0,.12)"}`,background:G?"rgba(255,255,255,.02)":"rgba(0,0,0,.02)",textAlign:"center",cursor:pdfBusy?"wait":"pointer",marginBottom:6,opacity:pdfBusy?.6:1}}><div style={{fontSize:24,marginBottom:6}}>{pdfBusy?"⏳":"📄"}</div><div style={{fontSize:12,fontWeight:600,color:A,fontFamily:F2}}>{pdfBusy?"Reading PDF…":"Tap to select PDF statement"}</div><div style={{fontSize:9,color:G?"#666":"#999",marginTop:4}}>Parsed on-device with pdf.js — nothing is uploaded</div><input type="file" accept=".pdf" disabled={pdfBusy} onChange={loadPdf} style={{display:"none"}}/></label></Morph>
     </Morph>
     <Morph show={step===2} maxH={500} ms={250}>
       <div style={{fontSize:12,color:G?"#888":"#666",marginBottom:10}}>Found {rows.length} rows. Map the columns:</div>
@@ -2394,27 +2537,196 @@ function ImportOv({D,sv,fl,G,setOv,closeOv,ovClosing,ovSwap}){
         {parseWarns.dateFallback>0&&<div style={{fontSize:10,color:"#F59E0B",fontWeight:600,marginBottom:2}}>⚠ {parseWarns.dateFallback} date{parseWarns.dateFallback>1?"s":""} couldn't be parsed — set to today</div>}
         {parseWarns.dupes>0&&<div style={{fontSize:10,color:"#EF4444",fontWeight:600,marginBottom:2}}>⚠ {parseWarns.dupes} potential duplicate{parseWarns.dupes>1?"s":""} found (marked DUP)</div>}
       </div>}
-      <div style={{fontSize:11,fontWeight:700,color:A,marginBottom:10}}>Review & assign envelopes:</div>
-      <div style={{maxHeight:"45vh",overflowY:"auto",marginBottom:14}}>
-        {parsed.map(tx=>{const curEid=envMap[tx.id]||tx.eid;const env=D.envs.find(e=>e.id===curEid);return(
-          <div key={tx.id} style={{padding:"6px 0",borderBottom:`1px solid ${G?"rgba(255,255,255,.04)":"rgba(0,0,0,.04)"}`,opacity:tx._isDup?.6:1}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-              <div style={{display:"flex",alignItems:"center",gap:4,flex:1,overflow:"hidden"}}><span style={{fontSize:11,fontWeight:600,color:t1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{tx.payee}</span>{tx._isDup&&<span style={{fontSize:7,color:"#EF4444",fontWeight:700,background:"rgba(239,68,68,.12)",padding:"1px 4px",borderRadius:3,flexShrink:0}}>DUP?</span>}</div>
-              <span style={{fontSize:11,fontWeight:700,color:tx.type==="inc"?A:"#EF4444",flexShrink:0}}>{tx.type==="inc"?"+":""}{fmt(tx.amt)}</span>
+      <div style={{fontSize:11,fontWeight:700,color:A,marginBottom:4}}>Review — tap the type to change it, untick to skip, ✚rule to remember the payee:</div>
+      <div style={{fontSize:9,color:t3,marginBottom:8}}>Likely duplicates are unticked by default. Transfers (purple) never count as income/expense.</div>
+      <div style={{maxHeight:"42vh",overflowY:"auto",marginBottom:14}}>
+        {parsed.map(tx=>{const curEid=envMap[tx.id]||tx.eid;const ty=typeMap[tx.id]||tx.type;const skip=!!skipMap[tx.id];const kb=kindBadge(tx.kind);const tcol=ty==="inc"?A:ty==="xfer"?"#A78BFA":"#EF4444";return(
+          <div key={tx.id} style={{padding:"7px 0",borderBottom:`1px solid ${G?"rgba(255,255,255,.04)":"rgba(0,0,0,.04)"}`,opacity:skip?.4:1}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:3,gap:6}}>
+              <div style={{display:"flex",alignItems:"center",gap:4,flex:1,overflow:"hidden"}}>
+                <input type="checkbox" checked={!skip} onChange={()=>setSkipMap({...skipMap,[tx.id]:!skip})} style={{accentColor:A,flexShrink:0}}/>
+                <span style={{fontSize:11,fontWeight:600,color:t1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{tx.payee}</span>
+                {kb&&<span style={{fontSize:7,color:kb[1],fontWeight:700,background:`${kb[1]}22`,padding:"1px 4px",borderRadius:3,flexShrink:0}}>{kb[0]}</span>}
+                {tx._isDup&&<span style={{fontSize:7,color:"#EF4444",fontWeight:700,background:"rgba(239,68,68,.12)",padding:"1px 4px",borderRadius:3,flexShrink:0}}>DUP?</span>}
+              </div>
+              <span style={{fontSize:11,fontWeight:700,color:tcol,flexShrink:0}}>{ty==="inc"?"+":ty==="xfer"?"⇄ ":""}{fmt(Math.abs(tx.amt))}</span>
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:4}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
               <span style={{fontSize:9,color:t3}}>{new Date(tx.ts).toLocaleDateString("en-ZA",{day:"numeric",month:"short"})}</span>
-              {tx.type==="exp"&&<EnvPick value={curEid} onChange={v=>setTxEnv(tx.id,v)} envs={D.envs} G={G} none="— None —" compact/>}
-              {tx.type==="inc"&&<span style={{fontSize:9,color:A,fontWeight:600}}>Income</span>}
+              <button onClick={()=>cycleType(tx.id,tx.type)} style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:4,border:`1px solid ${tcol}55`,background:`${tcol}15`,color:tcol,cursor:"pointer",...cT}}>{ty==="inc"?"Income":ty==="xfer"?"Transfer":"Expense"}</button>
+              {ty==="exp"&&<EnvPick value={curEid} onChange={v=>setTxEnv(tx.id,v)} envs={D.envs} G={G} none="— None —" compact/>}
+              <button onClick={()=>setRuleMap({...ruleMap,[tx.id]:!ruleMap[tx.id]})} title="Always categorise this payee this way" style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:4,border:`1px solid ${ruleMap[tx.id]?A:(G?"rgba(255,255,255,.12)":"#ddd")}`,background:ruleMap[tx.id]?`${A}15`:"transparent",color:ruleMap[tx.id]?A:t3,cursor:"pointer",...cT}}>{ruleMap[tx.id]?"✓ rule":"✚ rule"}</button>
             </div>
           </div>
         )})}
       </div>
-      <button onClick={doImport} disabled={parsed.length===0} style={{...pb(),background:A,opacity:parsed.length>0?1:.4}}>Import {parsed.length} Transactions</button>
-      <button onClick={()=>setStep(2)} style={{background:"none",border:"none",color:A,fontSize:12,fontFamily:F2,cursor:"pointer",display:"block",margin:"8px auto 0",...lT}}>← Back</button>
+      {(()=>{const keepN=parsed.filter(t=>!skipMap[t.id]).length;return <button onClick={doImport} disabled={keepN===0} style={{...pb(),background:A,opacity:keepN>0?1:.4}}>Import {keepN} Transaction{keepN!==1?"s":""}</button>})()}
+      <button onClick={()=>setStep(1)} style={{background:"none",border:"none",color:A,fontSize:12,fontFamily:F2,cursor:"pointer",display:"block",margin:"8px auto 0",...lT}}>← Back</button>
     </Morph>
   </Ov>);
 }
+
+/* ═══ §1 ACCOUNT TRANSFER — writes a netted xfer pair ═══ */
+function AcctXferOv({D,sv,fl,G,closeOv,ovClosing,ovSwap}){
+  const accts=D.accounts||[];
+  const[from,setFrom]=useState(accts[0]?.id||"");
+  const[to,setTo]=useState(accts.find((a,i)=>i>0)?.id||accts[0]?.id||"");
+  const[amt,setAmt]=useState("");const[desc,setDesc]=useState("");
+  const v=parseFloat(amt)||0;const valid=v>0&&from&&to&&from!==to;
+  const t1=G?"#fff":"#1a1a2e";
+  const accBtn=(a,sel,onClick)=>(<button key={a.id} onClick={onClick} style={{display:"flex",width:"100%",justifyContent:"space-between",alignItems:"center",padding:"9px 12px",background:sel?`${a.color||A}15`:(G?"#1a1a2a":"#fff"),border:`1px solid ${sel?(a.color||A):(G?"rgba(255,255,255,.06)":"#eee")}`,borderRadius:6,cursor:"pointer",fontFamily:F2,...cT}}><span style={{fontSize:13,color:t1,display:"flex",alignItems:"center",gap:6}}><span>{a.icon||"🏦"}</span>{a.name}</span><span style={{fontSize:12,fontWeight:700,color:t1}}>{fmt(a.balance)}</span></button>);
+  const go=()=>{if(!valid)return;const g=uid(),ts=Date.now();const fa=accts.find(a=>a.id===from),ta=accts.find(a=>a.id===to);const label=desc.trim()||`Transfer: ${fa?.name} → ${ta?.name}`;
+    const pair=[{id:uid(),type:"xfer",amt:-v,desc:label,payee:label,eid:"_xfer",subcat:"",accountId:from,ts,xferGroup:g,kind:"transfer"},{id:uid(),type:"xfer",amt:v,desc:label,payee:label,eid:"_xfer",subcat:"",accountId:to,ts:ts+1,xferGroup:g,kind:"transfer"}];
+    sv({...D,txs:[...pair,...D.txs]});fl("Transferred");closeOv()};
+  return (<Ov title="Move Money Between Accounts" onClose={closeOv} closing={ovClosing} ovSwap={ovSwap} G={G}>
+    <div style={{fontSize:11,color:G?"#888":"#666",marginBottom:12,lineHeight:1.45}}>An internal transfer moves money between your own accounts. It is <b>never</b> counted as income or expense.</div>
+    <Lbl G={G}>From</Lbl><div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:12}}>{accts.filter(a=>a.id!==to).map(a=>accBtn(a,from===a.id,()=>setFrom(a.id)))}</div>
+    <Lbl G={G}>To</Lbl><div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:12}}>{accts.filter(a=>a.id!==from).map(a=>accBtn(a,to===a.id,()=>setTo(a.id)))}</div>
+    <Lbl G={G}>Amount</Lbl><div style={{marginBottom:14}}><AmtIn value={amt} onChange={setAmt} G={G}/></div>
+    <Lbl G={G}>Note (optional)</Lbl><input type="text" enterKeyHint="done" value={desc} onChange={e=>setDesc(e.target.value)} placeholder="e.g. Sweep to savings" style={si(G)}/>
+    <button onClick={go} disabled={!valid} style={{...pb(),background:"#A78BFA",opacity:valid?1:.4}}>Transfer</button>
+  </Ov>);
+}
+
+/* ═══ §10 BUDGET TABLE — grouped Actual vs Target vs Diff + surplus/deficit ═══ */
+function BudgetOv({D,sv,fl,G,closeOv,ovClosing,ovSwap}){
+  const cur=filterTxByPeriod(D.txs,"month");
+  const t1=G?"#fff":"#1a1a2e",t2=G?"#888":"#777",t3=G?"#444":"#bbb",cb=G?"rgba(255,255,255,.06)":"rgba(0,0,0,.06)";
+  const expActual=eid=>cur.filter(t=>t.eid===eid&&isExpTx(t)).reduce((s,t)=>s+Math.abs(t.amt),0);
+  const setTarget=(eid,val)=>sv({...D,envs:D.envs.map(e=>e.id===eid?{...e,budget:Math.max(0,parseFloat(val)||0)}:e)});
+  const setIncTarget=(rid,val)=>sv({...D,recurring:D.recurring.map(r=>r.id===rid?{...r,amt:Math.max(0,parseFloat(val)||0)}:r)});
+  const setIncPaused=(rid)=>sv({...D,recurring:D.recurring.map(r=>r.id===rid?{...r,paused:!r.paused}:r)});
+  const incSources=(D.recurring||[]).filter(r=>r.isIncome);
+  const incActual=cur.filter(isIncTx).reduce((s,t)=>s+t.amt,0);
+  const incTarget=incSources.filter(r=>!r.paused).reduce((s,r)=>s+Math.abs(r.amt),0);
+  const expGroups=GROUP_ORDER.filter(g=>g!=="income").map(gid=>{const envs=D.envs.filter(e=>e.group===gid);return{gid,name:GROUP_LABEL(gid),color:GROUPS.find(x=>x.id===gid)?.color,envs,target:envs.reduce((s,e)=>s+(e.budget||0),0),actual:envs.reduce((s,e)=>s+expActual(e.id),0)}}).filter(g=>g.envs.length);
+  const totTarget=expGroups.reduce((s,g)=>s+g.target,0),totActual=expGroups.reduce((s,g)=>s+g.actual,0);
+  const planned=incTarget-totTarget,actualNet=incActual-totActual;
+  const num=n=>`${n<0?"-":""}R${Math.abs(Math.round(n)).toLocaleString("en-ZA")}`;
+  const HeadRow=()=>(<div style={{display:"flex",alignItems:"center",gap:6,padding:"2px 0 6px"}}><span style={{flex:1,fontSize:9,fontWeight:700,color:t3,letterSpacing:.4}}>CATEGORY</span><span style={{width:74,textAlign:"right",fontSize:9,fontWeight:700,color:t3}}>ACTUAL</span><span style={{width:64,textAlign:"right",fontSize:9,fontWeight:700,color:t3}}>TARGET</span><span style={{width:74,textAlign:"right",fontSize:9,fontWeight:700,color:t3}}>DIFF</span></div>);
+  const Row=({name,actual,target,color,edit,income,paused,onPause})=>{const diff=income?actual-target:target-actual;const good=diff>=0;return(
+    <div style={{display:"flex",alignItems:"center",gap:6,padding:"5px 0",borderBottom:`1px solid ${cb}`,opacity:paused?.5:1}}>
+      <span style={{width:7,height:7,borderRadius:2,background:color||"transparent",flexShrink:0}}/>
+      {onPause&&<button onClick={onPause} title={paused?"Resume source":"Pause source"} style={{background:"none",border:"none",cursor:"pointer",fontSize:10,padding:0,lineHeight:1,...lT}}>{paused?"▶":"⏸"}</button>}
+      <span style={{flex:1,fontSize:12,fontWeight:500,color:t1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{name}</span>
+      <span style={{width:74,textAlign:"right",fontSize:11,fontWeight:600,color:t1}}>{num(actual)}</span>
+      {edit?<input type="number" defaultValue={target||""} onBlur={e=>edit(e.target.value)} style={{width:60,textAlign:"right",fontSize:11,fontFamily:F2,fontWeight:600,color:t2,background:G?"rgba(255,255,255,.04)":"#fff",border:`1px solid ${cb}`,borderRadius:5,padding:"3px 4px",outline:"none"}}/>:<span style={{width:64,textAlign:"right",fontSize:11,fontWeight:600,color:t2}}>{num(target)}</span>}
+      <span style={{width:74,textAlign:"right",fontSize:11,fontWeight:700,color:good?A:"#EF4444"}}>{num(diff)}</span>
+    </div>)};
+  const SubTotal=({name,actual,target,color,income})=>{const diff=income?actual-target:target-actual;return(
+    <div style={{display:"flex",alignItems:"center",gap:6,padding:"6px 0",borderBottom:`2px solid ${color||cb}`,marginBottom:8}}>
+      <span style={{flex:1,fontSize:12,fontWeight:800,color:color||t1,letterSpacing:.3}}>{name}</span>
+      <span style={{width:74,textAlign:"right",fontSize:12,fontWeight:800,color:t1}}>{num(actual)}</span>
+      <span style={{width:64,textAlign:"right",fontSize:11,fontWeight:700,color:t2}}>{num(target)}</span>
+      <span style={{width:74,textAlign:"right",fontSize:12,fontWeight:800,color:diff>=0?A:"#EF4444"}}>{num(diff)}</span>
+    </div>)};
+  return (<Ov title="Monthly Budget" onClose={closeOv} closing={ovClosing} ovSwap={ovSwap} G={G}>
+    <div style={{fontSize:10,color:t3,marginBottom:6,lineHeight:1.4}}>This month · Actual vs editable Target. Internal transfers, one-off capital costs and lending are excluded from the run-rate.</div>
+    <HeadRow/>
+    {/* Income */}
+    <div style={{marginBottom:8}}>
+      {incSources.map(r=>(<Row key={r.id} name={r.payee} paused={r.paused} onPause={()=>setIncPaused(r.id)} actual={cur.filter(t=>isIncTx(t)&&(t.payee||t.desc)===r.payee).reduce((s,t)=>s+t.amt,0)} target={r.paused?0:Math.abs(r.amt)} color={"#00E5A0"} edit={v=>setIncTarget(r.id,v)} income/>))}
+      <SubTotal name="Income" actual={incActual} target={incTarget} color={"#00E5A0"} income/>
+    </div>
+    {/* Expense groups */}
+    {expGroups.map(g=>(<div key={g.gid} style={{marginBottom:8}}>
+      {g.envs.map(e=>(<Row key={e.id} name={e.name} actual={expActual(e.id)} target={e.budget||0} color={e.color} edit={v=>setTarget(e.id,v)}/>))}
+      <SubTotal name={g.name} actual={g.actual} target={g.target} color={g.color}/>
+    </div>))}
+    {/* Bottom line */}
+    <div style={{marginTop:6,padding:"12px 14px",borderRadius:12,background:actualNet>=0?`${A}14`:"rgba(239,68,68,.12)",border:`1px solid ${actualNet>=0?A+"44":"rgba(239,68,68,.35)"}`}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}><span style={{fontSize:12,fontWeight:700,color:t1}}>This month: Income − Spending</span><span style={{fontSize:20,fontWeight:800,fontFamily:F,color:actualNet>=0?A:"#EF4444"}}>{num(actualNet)}</span></div>
+      <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}><span style={{fontSize:10,color:t2}}>Planned (targets): {num(planned)}{planned>=0?" surplus":" deficit"}</span><span style={{fontSize:10,fontWeight:700,color:actualNet>=0?A:"#EF4444"}}>{actualNet>=0?"On track ✓":"Over budget"}</span></div>
+    </div>
+  </Ov>);
+}
+
+/* ═══ §3/§11 PAYEE RULES ═══ */
+function RulesOv({D,sv,fl,G,closeOv,ovClosing,ovSwap}){
+  const t1=G?"#fff":"#1a1a2e",t2=G?"#888":"#777",t3=G?"#444":"#bbb",cb=G?"rgba(255,255,255,.06)":"rgba(0,0,0,.06)";
+  const KINDS=[["expense","Expense"],["transfer","Transfer"],["income","Income"],["fee","Fee"],["subscription","Subscription"],["lending","Lending"]];
+  const[match,setMatch]=useState("");const[kind,setKind]=useState("expense");const[eid,setEid]=useState(D.envs[0]?.id||"");
+  const add=()=>{if(!match.trim())return;sv({...D,rules:[...(D.rules||[]),{id:uid(),match:match.trim(),kind,...(kind==="expense"||kind==="fee"||kind==="subscription"?{eid}:{})}]});setMatch("");fl("Rule saved")};
+  const del=id=>sv({...D,rules:(D.rules||[]).filter(r=>r.id!==id)});
+  return (<Ov title="Payee Rules" onClose={closeOv} closing={ovClosing} ovSwap={ovSwap} G={G}>
+    <div style={{fontSize:11,color:t2,marginBottom:12,lineHeight:1.45}}>When an imported or typed payee contains the text below, it's auto-categorised this way. e.g. payments to your landlord → Rent.</div>
+    <div style={{maxHeight:"38vh",overflowY:"auto",marginBottom:14}}>
+      {(D.rules||[]).length===0&&<div style={{fontSize:11,color:t3,textAlign:"center",padding:"16px 0"}}>No rules yet.</div>}
+      {(D.rules||[]).map(r=>{const env=D.envs.find(e=>e.id===r.eid);return(<div key={r.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:`1px solid ${cb}`}}>
+        <div style={{flex:1,overflow:"hidden"}}><div style={{fontSize:12,fontWeight:600,color:t1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>“{r.match}”</div><div style={{fontSize:9,color:t3}}>→ {r.kind}{env?` · ${env.name}`:""}</div></div>
+        <button onClick={()=>del(r.id)} style={{background:"none",border:"none",color:"#EF4444",cursor:"pointer",fontSize:14,opacity:.6,...lT}}>×</button>
+      </div>)})}
+    </div>
+    <Lbl G={G}>Payee contains</Lbl><input type="text" enterKeyHint="done" value={match} onChange={e=>setMatch(e.target.value)} placeholder="e.g. Landlord, Clicks, AI Tool" style={si(G)}/>
+    <Lbl G={G}>Categorise as</Lbl><div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:12}}>{KINDS.map(([k,l])=>(<button key={k} onClick={()=>setKind(k)} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${kind===k?A:(G?"rgba(255,255,255,.1)":"#ddd")}`,background:kind===k?`${A}15`:(G?"#1a1a2a":"#fff"),color:kind===k?A:t2,fontSize:11,fontFamily:F2,cursor:"pointer",...cT}}>{l}</button>))}</div>
+    {(kind==="expense"||kind==="fee"||kind==="subscription")&&<div style={{marginBottom:12}}><Lbl G={G}>Envelope</Lbl><EnvPick value={eid} onChange={setEid} envs={D.envs} G={G}/></div>}
+    <button onClick={add} disabled={!match.trim()} style={{...pb(),background:A,opacity:match.trim()?1:.4}}>Save Rule</button>
+  </Ov>);
+}
+
+/* ═══ §6 SUBSCRIPTIONS + spike / fee-leakage ═══ */
+function SubsOv({D,G,closeOv,ovClosing,ovSwap}){
+  const t1=G?"#fff":"#1a1a2e",t2=G?"#888":"#777",t3=G?"#444":"#bbb",cb=G?"rgba(255,255,255,.06)":"rgba(0,0,0,.06)";
+  const ms=gMonths(4);
+  const norm=p=>(p||"").replace(/^recurring card purchase[:\s]*/i,"").replace(/\s+add-?on.*$/i,"").trim();
+  const subTxs=D.txs.filter(t=>t.kind==="subscription"&&t.type==="exp");
+  const byPayee={};subTxs.forEach(t=>{const k=norm(t.payee||t.desc);if(!byPayee[k])byPayee[k]={name:k,months:{}};const mk=mK(t.ts);byPayee[k].months[mk]=(byPayee[k].months[mk]||0)+Math.abs(t.amt)});
+  const subs=Object.values(byPayee).map(s=>{const vals=ms.map(m=>s.months[m.mk]||0);const nonZero=vals.filter(v=>v>0);const base=nonZero.length>1?nonZero.slice(0,-1).reduce((a,b)=>a+b,0)/(nonZero.length-1):nonZero[0]||0;const latest=vals[vals.length-1]||nonZero[nonZero.length-1]||0;const spike=base>0&&latest>base*1.25;return{...s,vals,latest,base,spike}}).sort((a,b)=>b.latest-a.latest);
+  const monthlyTotal=subs.reduce((s,x)=>s+(x.latest||x.base),0);
+  // Fee leakage — last 3 months of fee txs
+  const since=periodStart("3mo");const feeTxs=D.txs.filter(t=>t.kind==="fee"&&t.ts>=since);const feeTotal=feeTxs.reduce((s,t)=>s+Math.abs(t.amt),0);
+  return (<Ov title="Subscriptions & Fees" onClose={closeOv} closing={ovClosing} ovSwap={ovSwap} G={G}>
+    <div style={{display:"flex",gap:8,marginBottom:14}}>
+      <div style={{flex:1,padding:"10px 12px",borderRadius:10,background:G?"rgba(99,102,241,.12)":"rgba(99,102,241,.08)",border:`1px solid rgba(99,102,241,.3)`}}><div style={{fontSize:9,color:t2,fontWeight:700}}>SUBSCRIPTIONS / MO</div><div style={{fontSize:18,fontWeight:800,fontFamily:F,color:"#818CF8"}}>{fmt(monthlyTotal)}</div></div>
+      <div style={{flex:1,padding:"10px 12px",borderRadius:10,background:"rgba(239,68,68,.12)",border:`1px solid rgba(239,68,68,.3)`}}><div style={{fontSize:9,color:t2,fontWeight:700}}>FEES (3 MO)</div><div style={{fontSize:18,fontWeight:800,fontFamily:F,color:"#EF4444"}}>{fmt(feeTotal)}</div></div>
+    </div>
+    <div style={{fontSize:11,fontWeight:700,color:t1,marginBottom:6}}>Recurring subscriptions</div>
+    {subs.length===0&&<div style={{fontSize:11,color:t3,padding:"10px 0"}}>No subscriptions detected yet — import or tag “Recurring Card Purchase” payees.</div>}
+    {subs.map((s,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:`1px solid ${cb}`}}>
+      <div style={{flex:1,overflow:"hidden"}}><div style={{fontSize:12,fontWeight:600,color:t1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.name}</div><div style={{fontSize:9,color:t3}}>{s.vals.map((v,j)=>v?fS(v):"–").join(" · ")}</div></div>
+      {s.spike&&<span style={{fontSize:8,color:"#F59E0B",fontWeight:800,background:"rgba(245,158,11,.15)",padding:"2px 6px",borderRadius:4}}>⚠ SPIKE</span>}
+      <span style={{fontSize:13,fontWeight:700,color:t1,width:70,textAlign:"right"}}>{fmt(s.latest||s.base)}</span>
+    </div>))}
+    {feeTotal>0&&<div style={{marginTop:14,fontSize:10,color:t2,lineHeight:1.4}}>💡 {feeTxs.length} fee{feeTxs.length>1?"s":""} in the last 3 months — keep a small buffer in your Main account to avoid decline / insufficient-funds fees.</div>}
+  </Ov>);
+}
+
+/* ═══ §7 LENDING / RECEIVABLES ═══ */
+function LendingOv({D,sv,fl,G,closeOv,ovClosing,ovSwap}){
+  const t1=G?"#fff":"#1a1a2e",t2=G?"#888":"#777",t3=G?"#444":"#bbb",cb=G?"rgba(255,255,255,.06)":"rgba(0,0,0,.06)";
+  const recs=D.receivables||[];
+  const[name,setName]=useState("");const[amt,setAmt]=useState("");
+  const total=recs.reduce((s,r)=>s+(r.balance||0),0);
+  const addLoan=()=>{const v=parseFloat(amt)||0;if(!name.trim()||v<=0)return;sv({...D,receivables:[...recs,{id:uid(),name:name.trim(),person:name.trim(),balance:v,paused:false,color:"#F97316",icon:"🤝"}]});setName("");setAmt("");fl("Loan tracked")};
+  const repay=(id,v)=>{const a=parseFloat(v)||0;if(a<=0)return;const rc=recs.find(r=>r.id===id);const ts=Date.now();const tx={id:uid(),type:"inc",amt:Math.abs(a),desc:`Repayment: ${rc?.name||"Loan"}`,payee:`Repayment: ${rc?.name||"Loan"}`,eid:"_inc",subcat:"",kind:"lending_repay",accountId:D.accounts?.[0]?.id||"",ts};
+    sv({...D,txs:[tx,...D.txs],receivables:recs.map(r=>r.id===id?{...r,balance:Math.max(0,r.balance-a)}:r)});fl("Repayment recorded")};
+  const togglePause=id=>sv({...D,receivables:recs.map(r=>r.id===id?{...r,paused:!r.paused}:r)});
+  const del=id=>sv({...D,receivables:recs.filter(r=>r.id!==id)});
+  return (<Ov title="Lending (Money Owed to You)" onClose={closeOv} closing={ovClosing} ovSwap={ovSwap} G={G}>
+    <div style={{padding:"10px 14px",borderRadius:10,background:"rgba(249,115,22,.12)",border:"1px solid rgba(249,115,22,.3)",marginBottom:14}}><div style={{fontSize:9,color:t2,fontWeight:700}}>TOTAL RECOVERABLE</div><div style={{fontSize:20,fontWeight:800,fontFamily:F,color:"#F97316"}}>{fmt(total)}</div></div>
+    <div style={{fontSize:10,color:t3,marginBottom:10,lineHeight:1.4}}>Money you've lent is tracked here as recoverable — not as spending. Repayments reduce the balance and don't count as income.</div>
+    {recs.map(r=>(<LendRow key={r.id} r={r} G={G} onRepay={repay} onPause={()=>togglePause(r.id)} onDel={()=>del(r.id)}/>))}
+    <div style={{borderTop:`1px solid ${cb}`,marginTop:8,paddingTop:12}}>
+      <Lbl G={G}>New loan out</Lbl>
+      <div style={{display:"flex",gap:6,marginBottom:10}}><input type="text" value={name} onChange={e=>setName(e.target.value)} placeholder="Who?" style={{...si(G),marginBottom:0,flex:1}}/><input type="number" value={amt} onChange={e=>setAmt(e.target.value)} placeholder="Amount" style={{...si(G),marginBottom:0,width:100}}/></div>
+      <button onClick={addLoan} disabled={!name.trim()||!(parseFloat(amt)>0)} style={{...pb(),background:"#F97316",color:"#fff",opacity:(name.trim()&&parseFloat(amt)>0)?1:.4}}>Track Loan</button>
+    </div>
+  </Ov>);
+}
+function LendRow({r,G,onRepay,onPause,onDel}){const t1=G?"#fff":"#1a1a2e",t2=G?"#888":"#777",t3=G?"#444":"#bbb",cb=G?"rgba(255,255,255,.06)":"rgba(0,0,0,.06)";const[rp,setRp]=useState("");return(
+  <div style={{padding:"9px 0",borderBottom:`1px solid ${cb}`,opacity:r.paused?.55:1}}>
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+      <span style={{fontSize:16}}>{r.icon||"🤝"}</span>
+      <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:t1}}>{r.name}{r.paused?" (paused)":""}</div><div style={{fontSize:9,color:t3}}>outstanding</div></div>
+      <span style={{fontSize:14,fontWeight:800,fontFamily:F,color:"#F97316"}}>{fmt(r.balance)}</span>
+    </div>
+    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+      <input type="number" value={rp} onChange={e=>setRp(e.target.value)} placeholder="Repayment" style={{...si(G),marginBottom:0,flex:1,padding:"5px 8px",fontSize:11}}/>
+      <button onClick={()=>{onRepay(r.id,rp);setRp("")}} disabled={!(parseFloat(rp)>0)} style={{padding:"5px 10px",borderRadius:6,border:"none",background:A,color:"#0a0b0f",fontSize:11,fontWeight:700,fontFamily:F2,cursor:"pointer",opacity:parseFloat(rp)>0?1:.4,...cT}}>Repaid</button>
+      <button onClick={onPause} style={{padding:"5px 8px",borderRadius:6,border:`1px solid ${cb}`,background:"transparent",color:t2,fontSize:10,fontFamily:F2,cursor:"pointer",...cT}}>{r.paused?"Resume":"Pause"}</button>
+      <button onClick={onDel} style={{background:"none",border:"none",color:"#EF4444",cursor:"pointer",fontSize:13,opacity:.5,...lT}}>×</button>
+    </div>
+  </div>)}
 
 function AddDebtOv({D,sv,fl,G,setOv,closeOv,ovClosing,ovSwap}){const[name,setName]=useState("");const[type,setType]=useState("loan");const[bal,setBal]=useState("");const[orig,setOrig]=useState("");const[rate,setRate]=useState("");const[minP,setMinP]=useState("");const[ci,setCi]=useState(3);
   const icons={loan:"🏦",credit_card:"💳",personal:"🤝",student:"🎓",mortgage:"🏠"};
@@ -2547,20 +2859,15 @@ function SetOv({D,sv,fl,G,setOv,cs,mode,closeOv,ovClosing,ovSwap}){
   const rmAccount=(id)=>{if((D.accounts||[]).length<=1){fl("Need at least one account",true);return}sv({...D,accounts:D.accounts.filter(a=>a.id!==id)});fl("Removed")};
   const reset=()=>{
     try{localStorage.removeItem("vb-v10")}catch{}
-    sv({
-      envs:[
-        {id:"groceries",name:"Groceries",color:"#00E5A0",budget:0,annual:false,rollover:0,subcats:[]},
-        {id:"gas",name:"Gas / Transport",color:"#3B82F6",budget:0,annual:false,rollover:0,subcats:[]},
-        {id:"eating_out",name:"Eating Out",color:"#F59E0B",budget:0,annual:false,rollover:0,subcats:[]},
-        {id:"giving",name:"Giving",color:"#A78BFA",budget:0,annual:false,rollover:0,subcats:[]},
-        {id:"fun",name:"Fun Money",color:"#EC4899",budget:0,annual:false,rollover:0,subcats:[]},
-        {id:"rent",name:"Rent / Mortgage",color:"#14B8A6",budget:0,annual:false,rollover:0,subcats:[]},
-        {id:"bills",name:"Bills & Utilities",color:"#EF4444",budget:0,annual:false,rollover:0,subcats:[]},
-        {id:"savings",name:"Savings",color:"#FBBF24",budget:0,annual:true,rollover:0,subcats:[]}
-      ],
-      txs:[],goals:[],recurring:[],accounts:[{id:"acc_main",name:"Cheque Account",type:"cheque",balance:0,openingBalance:0,color:"#00E5A0",icon:"🏦"}],debts:[],unal:0,theme:D.theme,accent:D.accent,mode:D.mode||"simple",nudgeShown:{standard:false,power:false},lastRolloverMonth:mK(Date.now())
-    });
-    fl("All data cleared");
+    // Reset to YOUR SA budget template (groups, accounts, recurring sources & payee rules kept) with transactional data cleared
+    const fresh=initD();
+    fresh.txs=[];fresh.unal=0;fresh.theme=D.theme;fresh.accent=D.accent;fresh.mode=D.mode||"power";fresh.nudgeShown={standard:true,power:true};
+    fresh.accounts=fresh.accounts.map(a=>({...a,balance:0,openingBalance:0}));
+    fresh.goals=(fresh.goals||[]).map(g=>({...g,saved:0}));
+    fresh.receivables=(fresh.receivables||[]).map(r=>({...r,balance:0}));
+    fresh.envs=fresh.envs.map(e=>({...e,rollover:0}));
+    sv(fresh);
+    fl("Reset to your budget template");
     closeOv();
   };
   return (<Ov title="Settings" onClose={closeOv} closing={ovClosing} ovSwap={ovSwap} G={G}>
