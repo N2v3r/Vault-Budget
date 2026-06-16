@@ -412,11 +412,14 @@ const reconcileAccounts=(data)=>{if(!data.accounts||!data.txs)return data;return
 const migrateOpeningBalances=(data)=>{if(!data.accounts)return data;const needsMigration=data.accounts.some(a=>a.openingBalance==null);if(!needsMigration)return data;return{...data,accounts:data.accounts.map(acc=>{if(acc.openingBalance!=null)return acc;const txSum=(data.txs||[]).filter(t=>t.accountId===acc.id).reduce((s,t)=>s+t.amt,0);return{...acc,openingBalance:acc.balance-txSum}})};};
 // Vignette background — used by body, loading screen, App outer
 const VIGNETTE="radial-gradient(ellipse at 50% 20%, #0d1b2a 0%, #0a0b0f 45%, #050709 100%) fixed";
+// Honour the OS "reduce motion" setting — count-ups jump to value, CSS animations neutralised via media query
+const prefersReducedMotion=()=>{try{return window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches}catch{return false}};
 // Tween a number from 0 (or previous value) to target with ease-out cubic
 function useCountUp(target,duration=600){
   const[v,setV]=useState(0);
   const startRef=useRef(0);
   useEffect(()=>{
+    if(prefersReducedMotion()){startRef.current=target;setV(target);return}
     const start=startRef.current;
     if(start===target){setV(target);return}
     const change=target-start;
@@ -433,6 +436,8 @@ function useCountUp(target,duration=600){
   },[target,duration]);
   return v;
 }
+// Animated currency/number — count-ups a value with the given formatter (honours reduced-motion via useCountUp)
+function AnimAmt({value,dur=700,fmt:f=fmt}){const v=useCountUp(value||0,dur);return <>{f(Math.round(v))}</>}
 
 /* ═══ LONG-PRESS HOOK ═══ */
 const LP_MOVE_THRESH=10;
@@ -712,7 +717,15 @@ function App(){
 button:not(:disabled):active{transform:scale(.95)!important;transition:transform 60ms cubic-bezier(.22,1,.36,1)}
 .vb-tappable{transition:transform .15s cubic-bezier(.22,1,.36,1),background .2s ease}
 .vb-tappable:active{transform:scale(.98);background:${A}0A}
-input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}input[type=number]{-moz-appearance:textfield}*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${A}33;border-radius:4px}::-webkit-scrollbar-thumb:hover{background:${A}55}@keyframes neonPulse{0%,100%{box-shadow:0 0 12px ${A}33,0 0 4px ${A}22}50%{box-shadow:0 0 20px ${A}55,0 0 8px ${A}33}}`}</style>
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}input[type=number]{-moz-appearance:textfield}*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${A}33;border-radius:4px}::-webkit-scrollbar-thumb:hover{background:${A}55}@keyframes neonPulse{0%,100%{box-shadow:0 0 12px ${A}33,0 0 4px ${A}22}50%{box-shadow:0 0 20px ${A}55,0 0 8px ${A}33}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes sheen{0%{transform:translateX(-120%) skewX(-18deg)}60%,100%{transform:translateX(320%) skewX(-18deg)}}
+@keyframes growBar{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes ringIn{from{stroke-dashoffset:var(--circ)}to{stroke-dashoffset:var(--target)}}
+.vb-skel{background:linear-gradient(90deg,${A}08 25%,${A}18 50%,${A}08 75%);background-size:200% 100%;animation:shimmer 1.4s ease-in-out infinite}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;animation-delay:0ms!important;transition-duration:.001ms!important;transition-delay:0ms!important;scroll-behavior:auto!important}
+}`}</style>
   </div>);
 }
 
@@ -804,6 +817,7 @@ function Dash({D,sv,fl,G,wide,cover,xwide,spent,rem,setOv,setTab,setSelE,allRem,
     {!xwide&&<Cd G={G} d={.05} s={{background:G?"rgba(15,20,30,.7)":`linear-gradient(135deg,#e0f7fa,#e8f5e9)`,marginBottom:12,position:"relative",overflow:"hidden"}}>
       <div style={{position:"absolute",top:-40,left:-40,width:240,height:240,borderRadius:120,background:`radial-gradient(circle,${A}15,transparent 60%)`,pointerEvents:"none"}}/>
       <div style={{position:"absolute",bottom:-60,right:-60,width:200,height:200,borderRadius:100,background:`radial-gradient(circle,${A2}10,transparent 60%)`,pointerEvents:"none"}}/>
+      <div style={{position:"absolute",top:0,left:0,width:"45%",height:"100%",background:G?"linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent)":"linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent)",animation:"sheen 2.4s cubic-bezier(.22,1,.36,1) .35s 1 both",pointerEvents:"none"}}/>
       <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:4,position:"relative",flexWrap:"wrap"}}>
         <span style={{fontSize:11,color:t2,fontWeight:700,letterSpacing:2}}>TOTAL BALANCE</span>
         <span style={{fontSize:9,color:t3,fontWeight:500,letterSpacing:.3}}>money on hand{acctN>1?` · ${acctN} accounts`:""}</span>
@@ -840,7 +854,7 @@ function Dash({D,sv,fl,G,wide,cover,xwide,spent,rem,setOv,setTab,setSelE,allRem,
         </div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
           <span style={{fontSize:12,color:t2,fontWeight:600}}>Income − Spending</span>
-          <span style={{fontSize:24,fontWeight:900,fontFamily:F,color:net>=0?A:"#EF4444",textShadow:G?`0 0 16px ${(net>=0?A:"#EF4444")}55`:"none"}}>{fmt(net)}</span>
+          <span style={{fontSize:24,fontWeight:900,fontFamily:F,color:net>=0?A:"#EF4444",textShadow:G?`0 0 16px ${(net>=0?A:"#EF4444")}55`:"none"}}><AnimAmt value={net}/></span>
         </div>
         <div style={{display:"flex",gap:14,marginTop:6}}>
           <span style={{fontSize:10,color:t3}}>In <b style={{color:A}}>{fS(cIn)}</b></span>
@@ -1037,14 +1051,30 @@ function Dash({D,sv,fl,G,wide,cover,xwide,spent,rem,setOv,setTab,setSelE,allRem,
 }
 function EnvTab({D,sv,fl,G,spent,rem,setOv,setSelE,allRem,cs}){const t1=G?"#fff":"#1a1a2e",t2=G?"#888":"#777",t3=G?"#444":"#bbb",cd=G?"rgba(255,255,255,.04)":"#fff",cb=G?"rgba(255,255,255,.06)":"rgba(0,0,0,.06)";
   return (<div style={{padding:14}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><div style={{fontSize:18,fontWeight:900,fontFamily:F,color:t1}}>Envelopes</div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:13,fontWeight:700,color:A}}>{fmt(allRem)}</span>{cs("search")&&<button onClick={()=>setOv({t:"search"})} style={{width:30,height:30,borderRadius:8,background:G?"rgba(255,255,255,.04)":"#fff",border:`1px solid ${G?"rgba(255,255,255,.06)":"rgba(0,0,0,.06)"}`,color:G?"#888":"#777",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",...cT}}>🔍</button>}</div></div>
-    {D.envs.map((env,i)=>{const r=rem(env.id);const eff=env.budget+(env.rollover||0);const pct=eff>0?cl(r/eff,0,1):0;const over=r<0;const warn=eff>0&&pct<.2&&!over;const ro=env.rollover||0;return (
+    {(()=>{
+      const renderEnv=(env,i)=>{const r=rem(env.id);const eff=env.budget+(env.rollover||0);const pct=eff>0?cl(r/eff,0,1):0;const over=r<0;const warn=eff>0&&pct<.2&&!over;const ro=env.rollover||0;return (
       <LPBtn key={env.id} onTap={()=>setSelE(env.id)} onLong={()=>setOv({t:"graph",graphType:"envTrend",eid:env.id})} style={{display:"block",width:"100%",padding:"12px 14px",...glass(G),borderRadius:12,marginBottom:6,cursor:"pointer",textAlign:"left",fontFamily:F2,animation:`fu .4s ease ${i*.03}s both`,...cT}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{display:"flex",alignItems:"center",gap:6}}><div style={{width:8,height:8,borderRadius:3,background:env.color}}/><span style={{fontSize:14,fontWeight:600,color:t1}}>{env.name}</span>
           {cs("rolloverBadges")&&over&&<span style={{fontSize:8,color:"#EF4444",fontWeight:800,background:"rgba(239,68,68,.12)",padding:"1px 4px",borderRadius:3}}>OVER</span>}{cs("rolloverBadges")&&warn&&<span style={{fontSize:8,color:"#F59E0B",fontWeight:800,background:"rgba(245,158,11,.12)",padding:"1px 4px",borderRadius:3}}>LOW</span>}
           {cs("rolloverBadges")&&ro!==0&&<span style={{fontSize:8,color:ro>0?A:"#EF4444",fontWeight:700,background:ro>0?`${A}12`:"rgba(239,68,68,.08)",padding:"1px 4px",borderRadius:3}}>{ro>0?"+":""}{fS(ro)}</span>}</div>
           <div style={{textAlign:"right"}}><div style={{fontSize:15,fontWeight:700,color:over?"#EF4444":t1}}>{fmt(r)}</div>{env.budget>0&&<div style={{fontSize:11,color:t3}}>{cs("rolloverBadges")&&ro!==0?`${fmt(env.budget)} ${ro>0?"+":""}${fS(ro)}`:fmt(env.budget)}</div>}</div></div>
-        {eff>0&&<div style={{height:4,background:G?"rgba(255,255,255,.05)":"rgba(0,0,0,.05)",borderRadius:2,marginTop:8,overflow:"hidden"}}><div style={{height:4,borderRadius:2,background:over?"#EF4444":warn?"#F59E0B":env.color,width:`${cl(pct*100,0,100)}%`,transformOrigin:"left",animation:`bg .5s ease ${.1+i*.04}s both`,transition:"width .4s"}}/></div>}
-      </LPBtn>)})}
+        {eff>0&&(()=>{const bc=over?"#EF4444":warn?"#F59E0B":env.color;return(<div style={{height:5,background:G?"rgba(255,255,255,.05)":"rgba(0,0,0,.05)",borderRadius:3,marginTop:8,overflow:"hidden"}}><div style={{height:5,borderRadius:3,background:`linear-gradient(90deg,${bc}cc,${bc})`,width:`${cl(pct*100,0,100)}%`,transformOrigin:"left",animation:`bg .6s cubic-bezier(.22,1,.36,1) ${.1+i*.04}s both`,transition:"width .4s",boxShadow:G?`0 0 8px ${bc}66`:"none"}}/></div>)})()}
+      </LPBtn>)};
+      const gid=e=>(e.group&&GROUP_ORDER.includes(e.group)?e.group:"other");
+      const order=[...GROUP_ORDER.filter(g=>g!=="income"),"other"];
+      let idx=0;
+      return order.map(g=>{
+        const ge=D.envs.filter(e=>gid(e)===g);if(!ge.length)return null;
+        const gm=GROUPS.find(x=>x.id===g);const col=gm?.color||"#94A3B8";const gRem=ge.reduce((s,e)=>s+rem(e.id),0);
+        return(<div key={g} style={{marginBottom:4}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"12px 2px 6px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:7}}><span style={{width:8,height:8,borderRadius:3,background:col,boxShadow:G?`0 0 8px ${col}99`:"none"}}/><span style={{fontSize:11,fontWeight:800,letterSpacing:.8,color:t2}}>{(gm?.name||"Other").toUpperCase()}</span></div>
+            <span style={{fontSize:11,fontWeight:700,color:gRem<0?"#EF4444":t2}}>{fmt(gRem)}</span>
+          </div>
+          {ge.map(env=>renderEnv(env,idx++))}
+        </div>);
+      });
+    })()}
     {cs("recurring")&&D.recurring?.length>0&&<div style={{marginTop:8,padding:"8px 14px",...glass(G),borderRadius:12}}>
       <div style={{fontSize:10,color:t3,fontWeight:600,letterSpacing:1,marginBottom:6}}>RECURRING ({D.recurring.length})</div>
       {D.recurring.map(r=>(<div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 0",fontSize:12}}><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{color:t2}}>{r.payee}</span><span style={{fontSize:8,fontWeight:700,color:"#A78BFA",background:"rgba(167,139,250,.1)",padding:"1px 5px",borderRadius:3,textTransform:"capitalize"}}>{r.freq}</span></div><div style={{display:"flex",gap:6,alignItems:"center"}}><span style={{color:t1,fontWeight:600}}>{fmt(Math.abs(r.amt))}</span><button onClick={()=>{const next={...D,recurring:D.recurring.filter(x=>x.id!==r.id)};sv(next);fl("Removed")}} style={{background:"none",border:"none",color:t3,cursor:"pointer",fontSize:12,...lT}}>×</button></div></div>))}
@@ -2728,7 +2758,7 @@ function BudgetOv({D,sv,fl,G,closeOv,ovClosing,ovSwap}){
     </div>))}
     {/* Bottom line */}
     <div style={{marginTop:6,padding:"12px 14px",borderRadius:12,background:actualNet>=0?`${A}14`:"rgba(239,68,68,.12)",border:`1px solid ${actualNet>=0?A+"44":"rgba(239,68,68,.35)"}`}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}><span style={{fontSize:12,fontWeight:700,color:t1}}>This month: Income − Spending</span><span style={{fontSize:20,fontWeight:800,fontFamily:F,color:actualNet>=0?A:"#EF4444"}}>{num(actualNet)}</span></div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}><span style={{fontSize:12,fontWeight:700,color:t1}}>This month: Income − Spending</span><span style={{fontSize:20,fontWeight:800,fontFamily:F,color:actualNet>=0?A:"#EF4444"}}><AnimAmt value={actualNet} fmt={num}/></span></div>
       <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}><span style={{fontSize:10,color:t2}}>Planned (targets): {num(planned)}{planned>=0?" surplus":" deficit"}</span><span style={{fontSize:10,fontWeight:700,color:actualNet>=0?A:"#EF4444"}}>{actualNet>=0?"On track ✓":"Over budget"}</span></div>
     </div>
   </Ov>);

@@ -201,6 +201,42 @@ New tier-feature keys: `budgetTable`, `acctXfer` (Standard); `payeeRules`,
 Verification: code-reviewed + delimiter-balance checked; live verification is
 via the Netlify branch-preview URL (mobile workflow). Not yet merged to `main`.
 
+### Follow-up fixes + polish pass (2026-06-16, same branch)
+
+**Functional fixes (Part A):**
+- **§1 hero** now shows TRUE money-on-hand — the combined balance across the 7
+  accounts (real net worth), clearly labelled "TOTAL BALANCE · money on hand · N
+  accounts". Budget-remaining is surfaced separately as a labelled "BUDGET LEFT"
+  metric. The two are no longer conflated. (`netWorth`/`acctTotal` in `App`,
+  threaded into `Dash` + `Sidebar`.)
+- **§6 subscription spikes** — `analyzeSubs()`/`topSubSpike()` now scan EVERY month
+  of each sub's history against a robust median baseline and flag any month >1.4×
+  baseline (and ≥R100 over). The past AI-tool spike now fires, is surfaced as a
+  dashboard banner, and shown in the Subs overlay with per-month sparklines (spike
+  month glows amber).
+- **§4 split** — over-budget envelopes now WARN (amber, "· allowed") instead of
+  blocking, so the pharmacy→Medicine split works when Medicine is over. Added a
+  second mode that re-buckets a **merchant's monthly total** across categories
+  (`merchantSplit` txs, reachable from the new ✂ Split dashboard tool). Empty split
+  lines are ignored on save.
+- **Seed re-baselined** to the spec's reference shape: current month nets ≈ -R7,578
+  (income ~R41k, run-rate ~R48.6k); current month kept exact, history mildly varied
+  so the over-spend trend is visible. All real structure preserved + editable.
+- **Backup** made prominent — a 💾 button in the dashboard header, sidebar footer
+  and tools row opens a dedicated Backup & Restore overlay (export/import). Per-
+  account **minimum buffer** is now user-editable in Settings → Accounts.
+
+**Visual / UX polish (Part B):**
+- `prefers-reduced-motion` honoured (CSS media query neutralises animations;
+  `useCountUp` jumps to value).
+- Count-up animation on the dashboard + budget-table "Income − Spending" net.
+- Hero sheen sweep on load; gradient + glow envelope progress bars.
+- Envelopes tab grouped by category group with colour-coded headers and per-group
+  subtotals.
+
+Verified headless (Playwright, mobile + desktop + light + reduced-motion):
+**zero console errors**, all four must-fixes confirmed, persistence survives reload.
+
 ## Backlog (PWA-only, nice-to-have)
 
 Not blocking the Flutter rewrite, but tracked here so they're not lost:
