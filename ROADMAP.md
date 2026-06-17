@@ -234,8 +234,32 @@ via the Netlify branch-preview URL (mobile workflow). Not yet merged to `main`.
 - Envelopes tab grouped by category group with colour-coded headers and per-group
   subtotals.
 
-Verified headless (Playwright, mobile + desktop + light + reduced-motion):
-**zero console errors**, all four must-fixes confirmed, persistence survives reload.
+**Premium visual round (Part C) — "well animated, colorful, looks AMAZING":**
+- **Colour** — all 9 accent themes re-pitched to richer, more confident pairs
+  (vivid yet legible on dark + light); accent-tinted glass cards with ambient glow;
+  accent-washed page background (layered radial gradients); semantic red/amber/green
+  preserved.
+- **Layout** — desktop (~1440px) dashboard reworked into a dense, balanced
+  CSS-multicolumn masonry that fills the space (2 cols ≥1180px, 3 ≥1560px); the old
+  hard 860px content cap removed and width is now tab-aware. Mobile single-column
+  layout kept and untouched.
+- **Charts** — subscription "sparkline squares" replaced with real animated
+  area+line sparklines (spike months glow amber); Monthly Trend upgraded from
+  expense-only bars to a dual **income-vs-expense** area chart with draw-in + spike
+  marker; donut/rings keep colour + glow.
+- **Icons** — emoji removed from the chrome in favour of a cohesive inline SVG icon
+  set (Lucide-style, `Icon` component + `EMO` emoji→name map); nav, hero, accounts,
+  goals, tools, settings, themes, tiers, overlays all use it.
+- **Typography** — added **Sora** display face (`F3`); hero balance + key figures
+  set large/tight with a gradient text-clip "moment" and tabular numerals.
+- **Animation** — staggered card/row entrances, count-ups, chart draw-in
+  (stroke-dashoffset), area rise, dot pops, envelope-fill bars, card hover-lift on
+  desktop. All gated behind `prefers-reduced-motion`.
+
+Verified headless (Playwright, mobile 390px + desktop 1440px + light/dark + sunset/
+galaxy/tech themes + overlays + reduced-motion): **zero console errors in every
+state**, all four prior must-fixes still confirmed, animation captured mid-transition,
+persistence survives reload. Single-file / no-backend / CDN-only constraints kept.
 
 ## Backlog (PWA-only, nice-to-have)
 
