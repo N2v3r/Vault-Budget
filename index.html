@@ -227,18 +227,18 @@ const GROUP_ORDER=GROUPS.map(g=>g.id);
 // Expense envelopes, grouped. budget = monthly Target (editable). group drives the budget table.
 const DENV=[
   // Home & Family
-  {id:"rent",name:"Rent",color:"#14B8A6",budget:7620,annual:false,rollover:0,group:"home",subcats:[]},
-  {id:"household",name:"Household Allowance",color:"#06B6D4",budget:8800,annual:false,rollover:0,group:"home",subcats:["Cellphones","School Fees","Electricity"]},
-  {id:"internet",name:"Internet",color:"#3B82F6",budget:1150,annual:false,rollover:0,group:"home",subcats:["Fibre"]},
-  {id:"car_ins",name:"Car Insurance",color:"#6366F1",budget:1110,annual:false,rollover:0,group:"home",subcats:["Car 1","Car 2"]},
-  // Health (self-funded, no medical aid)
+  {id:"rent",name:"Rent",color:"#14B8A6",budget:9500,annual:false,rollover:0,group:"home",subcats:[]},
+  {id:"household",name:"Household Allowance",color:"#06B6D4",budget:8000,annual:false,rollover:0,group:"home",subcats:["Cellphones","School Fees","Electricity"]},
+  {id:"internet",name:"Internet",color:"#3B82F6",budget:900,annual:false,rollover:0,group:"home",subcats:["Fibre"]},
+  {id:"car_ins",name:"Car Insurance",color:"#6366F1",budget:1100,annual:false,rollover:0,group:"home",subcats:["Car 1","Car 2"]},
+  // Health (demo group with sub-lines)
   {id:"medicine",name:"Medicine",color:"#EF4444",budget:2550,annual:false,rollover:0,group:"health",subcats:["Pharmacy","Chronic"]},
-  {id:"trt",name:"TRT / Peptides",color:"#EC4899",budget:2750,annual:false,rollover:0,group:"health",subcats:["Supplier"]},
+  {id:"supp",name:"Supplements",color:"#EC4899",budget:800,annual:false,rollover:0,group:"health",subcats:["General"]},
   {id:"doctors",name:"Doctors",color:"#F97316",budget:150,annual:false,rollover:0,group:"health",subcats:[]},
   // Everyday
-  {id:"groceries",name:"Groceries",color:"#00E5A0",budget:2500,annual:false,rollover:0,group:"everyday",subcats:["Checkers","Woolworths","Pick n Pay","Spar"]},
-  {id:"fuel",name:"Fuel",color:"#3B82F6",budget:2900,annual:false,rollover:0,group:"everyday",subcats:["Engen","Shell","Sasol","BP"]},
-  {id:"personal_care",name:"Toiletries & Personal",color:"#14B8A6",budget:2750,annual:false,rollover:0,group:"everyday",subcats:["Clicks","Dis-Chem"]},
+  {id:"groceries",name:"Groceries",color:"#00E5A0",budget:2500,annual:false,rollover:0,group:"everyday",subcats:["FreshMart","GreenBasket","DailyGrocer","MarketCo"]},
+  {id:"fuel",name:"Fuel",color:"#3B82F6",budget:2900,annual:false,rollover:0,group:"everyday",subcats:["FuelStop","GasGo","PetroPlus","DriveFuel"]},
+  {id:"personal_care",name:"Toiletries & Personal",color:"#14B8A6",budget:2750,annual:false,rollover:0,group:"everyday",subcats:["PharmaPlus","CareMart"]},
   {id:"bank_fees",name:"Bank Fees",color:"#EF4444",budget:200,annual:false,rollover:0,group:"everyday",subcats:["Decline","Intl","Monthly"]},
   // Lifestyle
   {id:"takeaways",name:"Takeaways",color:"#F59E0B",budget:1200,annual:false,rollover:0,group:"lifestyle",subcats:[]},
@@ -285,53 +285,53 @@ const initD=()=>{
     const mStart=new Date(baseDate.getFullYear(),baseDate.getMonth()-m,1);
     const dim=new Date(mStart.getFullYear(),mStart.getMonth()+1,0).getDate();
     const T=d=>mStart.getTime()+(Math.max(1,Math.min(Math.round(d),dim))-1)*day+Math.floor(sR()*day*.4);
-    // CURRENT month is kept exact so the live run-rate lands at the spec's ~ -R7,600/mo over-spend;
+    // CURRENT month is kept exact so the live run-rate lands on a tidy demo surplus;
     // history carries mild variance for realism. va(base,pct) = exact this month, varied in the past.
     const cur=m===0;const va=(b,p)=>cur?b:vary(b,p);
-    // ── Income ── salary lands in Main (recent raise: lower earlier) + steady spouse top-up ≈ R41k/mo ──
-    inc(m>=4?36000:39000,"Salary",T(25),"acc_main");
-    inc(2000,"Spouse Contribution",T(va(12,.4)),"acc_main");
+    // ── Income ── fictional flat salary into Main + steady secondary top-up ──
+    inc(40000,"Salary",T(25),"acc_main");
+    inc(2000,"Secondary Income",T(va(12,.4)),"acc_main");
     // Investment interest — STOPPED 2 months ago (date-bounded source demo)
     if(m>=2)inc(3600,"Investment Interest",T(3),"acc_main");
     // ── Salary sweeps to pockets (internal — must NOT count as income/expense) ──
     xfer(20000,"acc_main","acc_budget","Banking App Transfer to Monthly Budget",T(25));
     xfer(2500,"acc_main","acc_emerg","Banking App Transfer to Emergency Fund",T(26));
     xfer(1500,"acc_main","acc_medical","Banking App Transfer to Medical Fund",T(26));
-    xfer(1200,"acc_main","acc_vehicle","Banking App Transfer to Vehicle",T(26));
-    if(sR()>.5)xfer(vary(150,.6),"acc_main","acc_livebetter","Live Better Round-up Transfer",T(vary(15,.5)),"sweep");
+    xfer(1200,"acc_main","acc_vehicle","Banking App Transfer to Car Fund",T(26));
+    if(sR()>.5)xfer(vary(150,.6),"acc_main","acc_rewards","Round-up Transfer",T(vary(15,.5)),"sweep");
     // ── Home & Family (paid from Monthly Budget pocket) ──
-    ex(7620,"Immediate Payment: Landlord","rent",T(1),"","acc_budget");
-    ex(8800,"Immediate Payment: Spouse","household",T(2),"","acc_budget");
-    ex(1150,"Recurring Card Purchase: Internet","internet",T(5),"Fibre","acc_budget","subscription");
-    ex(1110,"Car Insurance","car_ins",T(4),"","acc_budget");
-    // ── Health (self-funded) — pharmacy ~R5,300 lands in Health/Medicine, pushing it well over its R2,550 target ──
-    const pharm=va(5300,.1);
-    ex(Math.round(pharm*0.6),"Clicks Pharmacy","medicine",T(va(8,.5)),"Pharmacy","acc_medical");
-    ex(Math.round(pharm*0.4),"Dis-Chem Chronic Meds","medicine",T(va(9,.5)),"Chronic","acc_medical");
-    // TRT ~R2,750/mo (occasional bulk restock in older months only — never distorts the current month)
-    if(m>0&&m%3===0)ex(vary(8200,.08),"TRT Supplier (bulk)","trt",T(vary(10,.4)),"Supplier","acc_medical");
-    else ex(va(2750,.12),"TRT Supplier","trt",T(va(10,.4)),"Supplier","acc_medical");
+    ex(9500,"Immediate Payment: Property Rental","rent",T(1),"","acc_budget");
+    ex(8000,"Immediate Payment: Household Transfer","household",T(2),"","acc_budget");
+    ex(800,"Recurring Card Purchase: Internet","internet",T(5),"Fibre","acc_budget","subscription");
+    ex(1100,"Car Insurance","car_ins",T(4),"","acc_budget");
+    // ── Health (demo) — pharmacy split lands in Health/Medicine, nudging it just over its R2,550 target ──
+    const pharm=va(2600,.1);
+    ex(Math.round(pharm*0.6),"City Pharmacy","medicine",T(va(8,.5)),"Pharmacy","acc_medical");
+    ex(Math.round(pharm*0.4),"HealthMart Chronic Meds","medicine",T(va(9,.5)),"Chronic","acc_medical");
+    // Supplements ~R700/mo (occasional bulk restock in older months only — never distorts the current month)
+    if(m>0&&m%3===0)ex(vary(2000,.08),"Supplements (bulk)","supp",T(vary(10,.4)),"General","acc_medical");
+    else ex(va(700,.12),"Supplements","supp",T(va(10,.4)),"General","acc_medical");
     ex(va(150,.4),"Dr Visit","doctors",T(va(14,.5)),"","acc_medical");
     // ── Everyday ──
-    const nG=3+Math.floor(sR()*3);for(let g=0;g<nG;g++){const p=pick(["Checkers","Woolworths","Pick n Pay","Spar"]);ex(cur?2500/nG:vary(2500/nG,.3),p,"groceries",T(va((g+1)*dim/(nG+1),.2)),p,"acc_budget")}
-    const nF=2+Math.floor(sR()*2);for(let g=0;g<nF;g++){const p=pick(["Engen","Shell","Sasol","BP"]);ex(cur?2900/nF:vary(2900/nF,.25),p,"fuel",T(va((g+1)*dim/(nF+1),.2)),p,"acc_budget")}
-    ex(va(2550,.15),pick(["Clicks","Dis-Chem"]),"personal_care",T(va(11,.4)),pick(["Clicks","Dis-Chem"]),"acc_budget");
-    // ── Lifestyle (the trimmable over-spend) — AI tool + a past spike, streaming, takeaways/clothing/online/going-out ──
-    ex(2500,"Recurring Card Purchase: AI Tool","subs",T(6),"AI Tool","acc_main","subscription");
-    if(m===1)ex(3700,"Recurring Card Purchase: AI Tool Add-on","subs",T(8),"AI Tool","acc_main","subscription");
-    ex(199,"Recurring Card Purchase: Netflix","subs",T(7),"Streaming","acc_main","subscription");
-    ex(89,"Recurring Card Purchase: Spotify","subs",T(7),"Music","acc_main","subscription");
-    ex(va(2900,.18),pick(["Nando's","Uber Eats","Steers","KFC"]),"takeaways",T(va(16,.4)),"","acc_main");
-    ex(va(2500,.22),pick(["Mr Price","Cotton On","Superbalist"]),"clothing",T(va(18,.4)),"","acc_main");
-    ex(va(2700,.22),pick(["Takealot","Amazon"]),"online",T(va(19,.4)),"","acc_main");
-    ex(va(2800,.2),pick(["Movie Night","The Bar","Restaurant"]),"going_out",T(va(20,.4)),"","acc_main");
+    const nG=3+Math.floor(sR()*3);for(let g=0;g<nG;g++){const p=pick(["FreshMart","GreenBasket","DailyGrocer","MarketCo"]);ex(cur?2500/nG:vary(2500/nG,.3),p,"groceries",T(va((g+1)*dim/(nG+1),.2)),p,"acc_budget")}
+    const nF=2+Math.floor(sR()*2);for(let g=0;g<nF;g++){const p=pick(["FuelStop","GasGo","PetroPlus","DriveFuel"]);ex(cur?2900/nF:vary(2900/nF,.25),p,"fuel",T(va((g+1)*dim/(nF+1),.2)),p,"acc_budget")}
+    ex(va(2550,.15),pick(["PharmaPlus","CareMart"]),"personal_care",T(va(11,.4)),pick(["PharmaPlus","CareMart"]),"acc_budget");
+    // ── Lifestyle — AI tool + a past spike (subscription-spike demo), streaming, takeaways/clothing/online/going-out ──
+    ex(2500,"Recurring Card Purchase: AI Assistant Pro","subs",T(6),"AI Tool","acc_main","subscription");
+    if(m===1)ex(3700,"Recurring Card Purchase: AI Assistant Pro Add-on","subs",T(8),"AI Tool","acc_main","subscription");
+    ex(199,"Recurring Card Purchase: StreamFlix","subs",T(7),"Streaming","acc_main","subscription");
+    ex(89,"Recurring Card Purchase: TuneStream","subs",T(7),"Music","acc_main","subscription");
+    ex(va(1800,.18),pick(["BurgerSpot","QuickBites","PizzaVan","NoodleBar"]),"takeaways",T(va(16,.4)),"","acc_main");
+    ex(va(1200,.22),pick(["UrbanWear","StyleCo","TrendShop"]),"clothing",T(va(18,.4)),"","acc_main");
+    ex(va(1100,.22),pick(["ShopOnline","MegaStore"]),"online",T(va(19,.4)),"","acc_main");
+    ex(va(1400,.2),pick(["Movie Night","The Local Bar","Bistro"]),"going_out",T(va(20,.4)),"","acc_main");
     // ── Fees (Main account runs near zero) — occasional in history, only the fixed monthly fee this month ──
     if(m>0&&sR()>.55)ex(vary(85,.3),"Card Purchase Limit Exceeded Fee","bank_fees",T(vary(22,.5)),"Decline","acc_main","fee");
     if(m>0&&sR()>.7)ex(vary(160,.2),"International Transaction Fee","bank_fees",T(vary(6,.3)),"Intl","acc_main","fee");
     ex(60,"Monthly Account Fee","bank_fees",T(1),"Monthly","acc_main","fee");
     // ── Lending out + repayments (recoverable, not run-rate spending) ──
-    if(m===nMonths-1)ex(2000,"Immediate Payment: Friend","lending",T(5),"","acc_main","lending_out");
-    if(m>0&&sR()>.5)inc(vary(400,.2),"PayShap from Friend",T(vary(15,.5)),"acc_main","lending_repay");
+    if(m===nMonths-1)ex(2000,"Immediate Payment: J. Dube","lending",T(5),"","acc_main","lending_out");
+    if(m>0&&sR()>.5)inc(vary(400,.2),"PayShap from J. Dube",T(vary(15,.5)),"acc_main","lending_repay");
   }
   // One-off capital event — kept OUT of monthly run-rate via kind:"oneoff"
   ex(45000,"Car Purchase Deposit","_oneoff",baseDate.getTime()-2*day,"","acc_save","oneoff");
@@ -339,48 +339,48 @@ const initD=()=>{
   const goals=[
     {id:uid(),name:"Emergency Fund",target:60000,saved:38000,color:"#00E5A0",icon:"🛡️",sinking:true},
     {id:uid(),name:"Medical Fund",target:30000,saved:12500,color:"#EF4444",icon:"➕",sinking:true},
-    {id:uid(),name:"Vehicle Maintenance",target:15000,saved:6400,color:"#6366F1",icon:"🔧",sinking:true},
-    {id:uid(),name:"Vehicle Licence",target:1800,saved:900,color:"#F59E0B",icon:"🚗",sinking:true},
-    {id:uid(),name:"Annual Insurance",target:13320,saved:5500,color:"#A78BFA",icon:"📅",sinking:true},
+    {id:uid(),name:"Car Maintenance",target:15000,saved:6400,color:"#6366F1",icon:"🔧",sinking:true},
+    {id:uid(),name:"Car Licence",target:1800,saved:900,color:"#F59E0B",icon:"🚗",sinking:true},
+    {id:uid(),name:"Annual Insurance",target:12000,saved:5500,color:"#A78BFA",icon:"📅",sinking:true},
   ];
   // Recurring — income sources (isIncome) + fixed bills. paused / endTs supported.
   const recurring=[
-    {id:uid(),payee:"Salary",amt:39000,isIncome:true,eid:"_inc",freq:"monthly",nextTs:now+10*day,lastTs:now-20*day,subcat:"",accountId:"acc_main",paused:false},
+    {id:uid(),payee:"Salary",amt:40000,isIncome:true,eid:"_inc",freq:"monthly",nextTs:now+10*day,lastTs:now-20*day,subcat:"",accountId:"acc_main",paused:false},
     {id:uid(),payee:"Investment Interest",amt:3600,isIncome:true,eid:"_inc",freq:"monthly",nextTs:now+3*day,lastTs:now-27*day,subcat:"",accountId:"acc_main",paused:true,endTs:now-40*day},
-    {id:uid(),payee:"Spouse Contribution",amt:2000,isIncome:true,eid:"_inc",freq:"monthly",nextTs:now+8*day,lastTs:now-22*day,subcat:"",accountId:"acc_main",paused:false},
-    {id:uid(),payee:"Immediate Payment: Landlord",amt:-7620,eid:"rent",freq:"monthly",nextTs:now+1*day,lastTs:now-29*day,subcat:"",accountId:"acc_budget"},
-    {id:uid(),payee:"Immediate Payment: Spouse",amt:-8800,eid:"household",freq:"monthly",nextTs:now+2*day,lastTs:now-28*day,subcat:"",accountId:"acc_budget"},
-    {id:uid(),payee:"Recurring Card Purchase: Internet",amt:-1150,eid:"internet",freq:"monthly",nextTs:now+5*day,lastTs:now-25*day,subcat:"Fibre",accountId:"acc_budget"},
-    {id:uid(),payee:"Car Insurance",amt:-1110,eid:"car_ins",freq:"monthly",nextTs:now+4*day,lastTs:now-26*day,subcat:"",accountId:"acc_budget"},
-    {id:uid(),payee:"Recurring Card Purchase: AI Tool",amt:-2500,eid:"subs",freq:"monthly",nextTs:now+6*day,lastTs:now-24*day,subcat:"AI Tool",accountId:"acc_main"},
-    {id:uid(),payee:"Recurring Card Purchase: Netflix",amt:-199,eid:"subs",freq:"monthly",nextTs:now+7*day,lastTs:now-23*day,subcat:"Streaming",accountId:"acc_main"},
-    {id:uid(),payee:"Recurring Card Purchase: Spotify",amt:-89,eid:"subs",freq:"monthly",nextTs:now+7*day,lastTs:now-23*day,subcat:"Music",accountId:"acc_main"},
+    {id:uid(),payee:"Secondary Income",amt:2000,isIncome:true,eid:"_inc",freq:"monthly",nextTs:now+8*day,lastTs:now-22*day,subcat:"",accountId:"acc_main",paused:false},
+    {id:uid(),payee:"Immediate Payment: Property Rental",amt:-9500,eid:"rent",freq:"monthly",nextTs:now+1*day,lastTs:now-29*day,subcat:"",accountId:"acc_budget"},
+    {id:uid(),payee:"Immediate Payment: Household Transfer",amt:-8000,eid:"household",freq:"monthly",nextTs:now+2*day,lastTs:now-28*day,subcat:"",accountId:"acc_budget"},
+    {id:uid(),payee:"Recurring Card Purchase: Internet",amt:-800,eid:"internet",freq:"monthly",nextTs:now+5*day,lastTs:now-25*day,subcat:"Fibre",accountId:"acc_budget"},
+    {id:uid(),payee:"Car Insurance",amt:-1100,eid:"car_ins",freq:"monthly",nextTs:now+4*day,lastTs:now-26*day,subcat:"",accountId:"acc_budget"},
+    {id:uid(),payee:"Recurring Card Purchase: AI Assistant Pro",amt:-2500,eid:"subs",freq:"monthly",nextTs:now+6*day,lastTs:now-24*day,subcat:"AI Tool",accountId:"acc_main"},
+    {id:uid(),payee:"Recurring Card Purchase: StreamFlix",amt:-199,eid:"subs",freq:"monthly",nextTs:now+7*day,lastTs:now-23*day,subcat:"Streaming",accountId:"acc_main"},
+    {id:uid(),payee:"Recurring Card Purchase: TuneStream",amt:-89,eid:"subs",freq:"monthly",nextTs:now+7*day,lastTs:now-23*day,subcat:"Music",accountId:"acc_main"},
   ];
   // 7 accounts: one transaction account + savings pockets. minBuffer on Main for low-balance warnings.
   const accounts=[
-    {id:"acc_main",name:"Main / Transaction",type:"cheque",balance:850,color:"#00E5A0",icon:"🏦",minBuffer:1000},
+    {id:"acc_main",name:"Main Account",type:"cheque",balance:850,color:"#00E5A0",icon:"🏦",minBuffer:1000},
     {id:"acc_budget",name:"Monthly Budget",type:"savings",balance:6200,color:"#3B82F6",icon:"📅",pocket:true},
-    {id:"acc_save",name:"Saving",type:"savings",balance:21000,color:"#FBBF24",icon:"💰",pocket:true},
+    {id:"acc_save",name:"Savings",type:"savings",balance:21000,color:"#FBBF24",icon:"💰",pocket:true},
     {id:"acc_emerg",name:"Emergency Fund",type:"savings",balance:38000,color:"#14B8A6",icon:"🛡️",pocket:true},
     {id:"acc_medical",name:"Medical Fund",type:"savings",balance:12500,color:"#EF4444",icon:"➕",pocket:true},
-    {id:"acc_vehicle",name:"Vehicle",type:"savings",balance:6400,color:"#6366F1",icon:"🚗",pocket:true},
-    {id:"acc_livebetter",name:"Live Better",type:"savings",balance:1850,color:"#A78BFA",icon:"✨",pocket:true},
+    {id:"acc_vehicle",name:"Car Fund",type:"savings",balance:6400,color:"#6366F1",icon:"🚗",pocket:true},
+    {id:"acc_rewards",name:"Rewards Saver",type:"savings",balance:1850,color:"#A78BFA",icon:"✨",pocket:true},
   ];
   // Informal lending — recoverable balance, repayments net against it, pausable
   const receivables=[
-    {id:uid(),name:"Loan to Friend",person:"Friend",balance:1600,paused:false,color:"#F97316",icon:"🤝"},
+    {id:uid(),name:"Loan to J. Dube",person:"J. Dube",balance:1600,paused:false,color:"#F97316",icon:"🤝"},
   ];
   // Saved payee → category rules (auto-categorise on import + manual entry)
   const rules=[
     {id:uid(),match:"Banking App Transfer",kind:"transfer"},
-    {id:uid(),match:"Live Better Round-up",kind:"transfer"},
-    {id:uid(),match:"Landlord",kind:"expense",eid:"rent"},
-    {id:uid(),match:"Spouse",kind:"expense",eid:"household"},
-    {id:uid(),match:"Clicks Pharmacy",kind:"expense",eid:"medicine"},
-    {id:uid(),match:"Dis-Chem",kind:"expense",eid:"medicine"},
-    {id:uid(),match:"TRT Supplier",kind:"expense",eid:"trt"},
+    {id:uid(),match:"Round-up Transfer",kind:"transfer"},
+    {id:uid(),match:"Property Rental",kind:"expense",eid:"rent"},
+    {id:uid(),match:"Household Transfer",kind:"expense",eid:"household"},
+    {id:uid(),match:"City Pharmacy",kind:"expense",eid:"medicine"},
+    {id:uid(),match:"HealthMart",kind:"expense",eid:"medicine"},
+    {id:uid(),match:"Supplements",kind:"expense",eid:"supp"},
     {id:uid(),match:"Recurring Card Purchase",kind:"expense",eid:"subs"},
-    {id:uid(),match:"Friend",kind:"lending"},
+    {id:uid(),match:"J. Dube",kind:"lending"},
     {id:uid(),match:"Decline Fee",kind:"fee",eid:"bank_fees"},
     {id:uid(),match:"Insufficient Funds Fee",kind:"fee",eid:"bank_fees"},
     {id:uid(),match:"International Transaction Fee",kind:"fee",eid:"bank_fees"},
@@ -2244,7 +2244,7 @@ function AddTxOv({D,sv,fl,G,rem,setOv,initType,cs,closeOv,ovClosing,ovSwap}){con
   const go=()=>{if(!valid)return;const tx={id:uid(),type,amt:type==="exp"?-v:v,desc:pay||(type==="inc"?"Income":"Expense"),payee:pay,eid:type==="exp"?eid:"_inc",subcat:type==="exp"?sub:"",note:note.trim(),accountId:accId||"",ts:Date.now()};let next={...D,txs:[tx,...D.txs]};if(type==="inc")next.unal=(next.unal||0)+v;sv(next);fl(type==="inc"?"Added":"Recorded");closeOv()};
   return (<Ov title="Add Transaction" onClose={closeOv} closing={ovClosing} ovSwap={ovSwap} G={G}>
     <div style={{display:"flex",marginBottom:14,borderRadius:8,overflow:"hidden",border:`1px solid ${G?"rgba(255,255,255,.1)":"#ddd"}`}}>{[["exp","Expense"],["inc","Income"]].map(([k,l])=>(<button key={k} onClick={()=>setType(k)} style={{flex:1,padding:10,border:"none",fontFamily:F2,fontSize:13,fontWeight:600,cursor:"pointer",background:type===k?A:(G?"#1a1a2a":"#fff"),color:type===k?"#0a0b0f":(G?"#888":"#666"),...cT}}>{l}</button>))}</div>
-    <Lbl G={G}>Payee</Lbl><TxtIn value={pay} onChange={setPay} G={G} placeholder="e.g. Checkers..." label="PAYEE" suggestions={payeeSugg}/>
+    <Lbl G={G}>Payee</Lbl><TxtIn value={pay} onChange={setPay} G={G} placeholder="e.g. FreshMart..." label="PAYEE" suggestions={payeeSugg}/>
     <Lbl G={G}>Amount</Lbl><div style={{marginBottom:14}}><AmtIn value={amt} onChange={setAmt} G={G}/></div>
     <Morph show={!!warn} maxH={50} ms={200}><div style={{fontSize:11,color:"#F59E0B",fontWeight:600,marginBottom:14,padding:"4px 0",display:"flex",alignItems:"center",gap:4}}><span>⚠</span>{warn}</div></Morph>
     {cs("multiAccount")&&D.accounts?.length>0&&<div><Lbl G={G}>Account</Lbl><div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:14}}>{D.accounts.map(acc=>(<button key={acc.id} onClick={()=>setAccId(acc.id)} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${accId===acc.id?A:(G?"rgba(255,255,255,.1)":"#ddd")}`,background:accId===acc.id?`${A}15`:(G?"#1a1a2a":"#fff"),color:accId===acc.id?A:(G?"#888":"#666"),fontSize:11,fontFamily:F2,cursor:"pointer",display:"flex",alignItems:"center",gap:4,...cT}}><Icon name={EMO[acc.icon]||"landmark"} size={13}/>{acc.name}</button>))}</div></div>}
@@ -2297,7 +2297,7 @@ function EditTxOv({D,sv,fl,G,rem,ov,setOv,cs,closeOv,ovClosing,ovSwap}){
   };
   return (<Ov title="Edit Transaction" onClose={closeOv} closing={ovClosing} ovSwap={ovSwap} G={G}>
     <div style={{display:"flex",marginBottom:14,borderRadius:8,overflow:"hidden",border:`1px solid ${G?"rgba(255,255,255,.1)":"#ddd"}`}}>{[["exp","Expense"],["inc","Income"]].map(([k,l])=>(<button key={k} onClick={()=>setType(k)} style={{flex:1,padding:10,border:"none",fontFamily:F2,fontSize:13,fontWeight:600,cursor:"pointer",background:type===k?A:(G?"#1a1a2a":"#fff"),color:type===k?"#0a0b0f":(G?"#888":"#666"),...cT}}>{l}</button>))}</div>
-    <Lbl G={G}>Payee</Lbl><TxtIn value={pay} onChange={setPay} G={G} placeholder="e.g. Checkers..." label="PAYEE" suggestions={payeeSugg}/>
+    <Lbl G={G}>Payee</Lbl><TxtIn value={pay} onChange={setPay} G={G} placeholder="e.g. FreshMart..." label="PAYEE" suggestions={payeeSugg}/>
     <Lbl G={G}>Amount</Lbl><div style={{marginBottom:14}}><AmtIn value={amt} onChange={setAmt} G={G}/></div>
     <Morph show={!!warn} maxH={50} ms={200}><div style={{fontSize:11,color:"#F59E0B",fontWeight:600,marginBottom:14,padding:"4px 0",display:"flex",alignItems:"center",gap:4}}><span>⚠</span>{warn}</div></Morph>
     {cs&&cs("notes")&&<><Lbl G={G}>Date</Lbl><DatePick value={date} onChange={setDate} G={G}/></>}
@@ -2401,7 +2401,7 @@ function SplitTxOv({D,sv,fl,G,rem,ov,setOv,closeOv,ovClosing,ovSwap}){
       </div>
       {mSel&&<div style={{fontSize:10,color:t2,marginBottom:14,lineHeight:1.45}}>Re-buckets <b>{mSel.txs.length}</b> “{mPay}” transaction{mSel.txs.length>1?"s":""} ({fmt(mSel.total)}) this month into the categories below.</div>}
     </>):(<>
-      <Lbl G={G}>Payee</Lbl><TxtIn value={pay} onChange={setPay} G={G} placeholder="e.g. Checkers..." label="PAYEE" suggestions={[...new Set(D.txs.map(t=>t.payee||t.desc).filter(Boolean))].slice(0,12)}/>
+      <Lbl G={G}>Payee</Lbl><TxtIn value={pay} onChange={setPay} G={G} placeholder="e.g. FreshMart..." label="PAYEE" suggestions={[...new Set(D.txs.map(t=>t.payee||t.desc).filter(Boolean))].slice(0,12)}/>
       <Lbl G={G}>Total Amount</Lbl><div style={{marginBottom:14}}><AmtIn value={total} onChange={setTotal} G={G}/></div>
     </>)}
     {D.accounts?.length>0&&<div><Lbl G={G}>Account</Lbl><div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:14}}>{D.accounts.map(acc=>(<button key={acc.id} onClick={()=>setAccId(acc.id)} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${accId===acc.id?A:(G?"rgba(255,255,255,.1)":"#ddd")}`,background:accId===acc.id?`${A}15`:(G?"#1a1a2a":"#fff"),color:accId===acc.id?A:(G?"#888":"#666"),fontSize:11,fontFamily:F2,cursor:"pointer",display:"flex",alignItems:"center",gap:4,...cT}}><Icon name={EMO[acc.icon]||"landmark"} size={13}/>{acc.name}</button>))}</div></div>}
@@ -2587,7 +2587,7 @@ function classifyImport(desc,amt,D){
     if(r.kind==="subscription")return{type:"exp",eid:r.eid||"subs",kind:"subscription",sub:r.sub||"",ruleId:r.id};
     if(r.kind==="expense")return{type:"exp",eid:r.eid||"",sub:r.sub||"",ruleId:r.id};
   }
-  if(/banking app transfer|live better round-?up|round-?up transfer|transfer to|transfer from|inter-?account/i.test(desc))return{type:"xfer",eid:"_xfer",kind:"transfer"};
+  if(/banking app transfer|round-?up transfer|round-?up|transfer to|transfer from|inter-?account/i.test(desc))return{type:"xfer",eid:"_xfer",kind:"transfer"};
   if(/recurring card purchase/i.test(desc))return{type:"exp",eid:"subs",kind:"subscription"};
   if(/insufficient funds|decline fee|limit exceeded fee|international transaction fee|monthly (account )?fee|admin fee|\bfee\b/i.test(desc))return{type:"exp",eid:"bank_fees",kind:"fee"};
   const type=amt>=0?"inc":"exp";let eid=type==="inc"?"_inc":"";
@@ -2725,7 +2725,7 @@ function ImportOv({D,sv,fl,G,setOv,closeOv,ovClosing,ovSwap}){
       <div style={{display:"flex",marginBottom:14,borderRadius:8,overflow:"hidden",border:`1px solid ${G?"rgba(255,255,255,.1)":"#ddd"}`}}>{[["paste","Paste text"],["csv","CSV"],["pdf","PDF"]].map(([k,l])=>(<button key={k} onClick={()=>setMode(k)} style={{flex:1,padding:9,border:"none",fontFamily:F2,fontSize:11,fontWeight:700,cursor:"pointer",background:mode===k?A:(G?"#1a1a2a":"#fff"),color:mode===k?"#0a0b0f":(G?"#888":"#666"),...cT}}>{l}</button>))}</div>
       <div style={{fontSize:11,color:G?"#888":"#666",marginBottom:10,lineHeight:1.45}}>Capitec descriptions auto-categorise: <b>Banking App Transfer</b> → internal transfer (netted out), <b>Recurring Card Purchase</b> → subscription, <b>Immediate Payment / PayShap</b> → your saved payee rules, fee lines → Bank Fees. Everything is reviewable before import.</div>
       {acctPicker}
-      <Morph show={mode==="paste"} maxH={400}><Lbl G={G}>Paste statement lines</Lbl><textarea value={pasteTxt} onChange={e=>setPasteTxt(e.target.value)} placeholder={"2026/06/01  Immediate Payment: Landlord  -7620.00\n2026/06/02  Banking App Transfer to Savings  -2500.00\n2026/06/25  Salary  39000.00"} style={{width:"100%",minHeight:130,padding:"10px",borderRadius:8,border:`1px solid ${G?"rgba(255,255,255,.1)":"#ddd"}`,background:G?"rgba(255,255,255,.05)":"#fff",color:t1,fontSize:12,fontFamily:"monospace",resize:"vertical",marginBottom:12,outline:"none"}}/><button onClick={doPaste} disabled={!pasteTxt.trim()} style={{...pb(),background:A,opacity:pasteTxt.trim()?1:.4}}>Parse →</button></Morph>
+      <Morph show={mode==="paste"} maxH={400}><Lbl G={G}>Paste statement lines</Lbl><textarea value={pasteTxt} onChange={e=>setPasteTxt(e.target.value)} placeholder={"2026/06/01  Immediate Payment: Property Rental  -9500.00\n2026/06/02  Banking App Transfer to Savings  -2500.00\n2026/06/25  Salary  40000.00"} style={{width:"100%",minHeight:130,padding:"10px",borderRadius:8,border:`1px solid ${G?"rgba(255,255,255,.1)":"#ddd"}`,background:G?"rgba(255,255,255,.05)":"#fff",color:t1,fontSize:12,fontFamily:"monospace",resize:"vertical",marginBottom:12,outline:"none"}}/><button onClick={doPaste} disabled={!pasteTxt.trim()} style={{...pb(),background:A,opacity:pasteTxt.trim()?1:.4}}>Parse →</button></Morph>
       <Morph show={mode==="csv"} maxH={200}><label style={{display:"block",width:"100%",padding:"22px 16px",borderRadius:10,border:`2px dashed ${G?"rgba(255,255,255,.12)":"rgba(0,0,0,.12)"}`,background:G?"rgba(255,255,255,.02)":"rgba(0,0,0,.02)",textAlign:"center",cursor:"pointer",marginBottom:6}}><div style={{display:"flex",justifyContent:"center",marginBottom:6}}><Icon name="folder" size={26} color={A}/></div><div style={{fontSize:12,fontWeight:600,color:A,fontFamily:F2}}>Tap to select CSV / TXT</div><input type="file" accept=".csv,.txt" onChange={loadFile} style={{display:"none"}}/></label></Morph>
       <Morph show={mode==="pdf"} maxH={200}><label style={{display:"block",width:"100%",padding:"22px 16px",borderRadius:10,border:`2px dashed ${G?"rgba(255,255,255,.12)":"rgba(0,0,0,.12)"}`,background:G?"rgba(255,255,255,.02)":"rgba(0,0,0,.02)",textAlign:"center",cursor:pdfBusy?"wait":"pointer",marginBottom:6,opacity:pdfBusy?.6:1}}><div style={{display:"flex",justifyContent:"center",marginBottom:6}}><Icon name={pdfBusy?"clock":"file"} size={26} color={A} style={pdfBusy?{animation:"pulse 1.2s infinite"}:{}}/></div><div style={{fontSize:12,fontWeight:600,color:A,fontFamily:F2}}>{pdfBusy?"Reading PDF…":"Tap to select PDF statement"}</div><div style={{fontSize:9,color:G?"#666":"#999",marginTop:4}}>Parsed on-device with pdf.js — nothing is uploaded</div><input type="file" accept=".pdf" disabled={pdfBusy} onChange={loadPdf} style={{display:"none"}}/></label></Morph>
     </Morph>
@@ -2864,7 +2864,7 @@ function RulesOv({D,sv,fl,G,closeOv,ovClosing,ovSwap}){
   const add=()=>{if(!match.trim())return;sv({...D,rules:[...(D.rules||[]),{id:uid(),match:match.trim(),kind,...(kind==="expense"||kind==="fee"||kind==="subscription"?{eid}:{})}]});setMatch("");fl("Rule saved")};
   const del=id=>sv({...D,rules:(D.rules||[]).filter(r=>r.id!==id)});
   return (<Ov title="Payee Rules" onClose={closeOv} closing={ovClosing} ovSwap={ovSwap} G={G}>
-    <div style={{fontSize:11,color:t2,marginBottom:12,lineHeight:1.45}}>When an imported or typed payee contains the text below, it's auto-categorised this way. e.g. payments to your landlord → Rent.</div>
+    <div style={{fontSize:11,color:t2,marginBottom:12,lineHeight:1.45}}>When an imported or typed payee contains the text below, it's auto-categorised this way. e.g. a recurring rent payment → Rent.</div>
     <div style={{maxHeight:"38vh",overflowY:"auto",marginBottom:14}}>
       {(D.rules||[]).length===0&&<div style={{fontSize:11,color:t3,textAlign:"center",padding:"16px 0"}}>No rules yet.</div>}
       {(D.rules||[]).map(r=>{const env=D.envs.find(e=>e.id===r.eid);return(<div key={r.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:`1px solid ${cb}`}}>
@@ -2872,7 +2872,7 @@ function RulesOv({D,sv,fl,G,closeOv,ovClosing,ovSwap}){
         <button onClick={()=>del(r.id)} style={{background:"none",border:"none",color:"#EF4444",cursor:"pointer",fontSize:14,opacity:.6,...lT}}>×</button>
       </div>)})}
     </div>
-    <Lbl G={G}>Payee contains</Lbl><input type="text" enterKeyHint="done" value={match} onChange={e=>setMatch(e.target.value)} placeholder="e.g. Landlord, Clicks, AI Tool" style={si(G)}/>
+    <Lbl G={G}>Payee contains</Lbl><input type="text" enterKeyHint="done" value={match} onChange={e=>setMatch(e.target.value)} placeholder="e.g. Property Rental, Pharmacy, AI Assistant" style={si(G)}/>
     <Lbl G={G}>Categorise as</Lbl><div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:12}}>{KINDS.map(([k,l])=>(<button key={k} onClick={()=>setKind(k)} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${kind===k?A:(G?"rgba(255,255,255,.1)":"#ddd")}`,background:kind===k?`${A}15`:(G?"#1a1a2a":"#fff"),color:kind===k?A:t2,fontSize:11,fontFamily:F2,cursor:"pointer",...cT}}>{l}</button>))}</div>
     {(kind==="expense"||kind==="fee"||kind==="subscription")&&<div style={{marginBottom:12}}><Lbl G={G}>Envelope</Lbl><EnvPick value={eid} onChange={setEid} envs={D.envs} G={G}/></div>}
     <button onClick={add} disabled={!match.trim()} style={{...pb(),background:A,opacity:match.trim()?1:.4}}>Save Rule</button>

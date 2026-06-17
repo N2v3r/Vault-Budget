@@ -219,9 +219,9 @@ via the Netlify branch-preview URL (mobile workflow). Not yet merged to `main`.
   second mode that re-buckets a **merchant's monthly total** across categories
   (`merchantSplit` txs, reachable from the new ✂ Split dashboard tool). Empty split
   lines are ignored on save.
-- **Seed re-baselined** to the spec's reference shape: current month nets ≈ -R7,578
-  (income ~R41k, run-rate ~R48.6k); current month kept exact, history mildly varied
-  so the over-spend trend is visible. All real structure preserved + editable.
+- **Seed is fully fictional demo data** (no real personal/financial info): current
+  month nets a tidy demo surplus (income ~R42k, run-rate ~R38.5k); current month kept
+  exact, history mildly varied for realism. Every feature exercised + editable.
 - **Backup** made prominent — a 💾 button in the dashboard header, sidebar footer
   and tools row opens a dedicated Backup & Restore overlay (export/import). Per-
   account **minimum buffer** is now user-editable in Settings → Accounts.
