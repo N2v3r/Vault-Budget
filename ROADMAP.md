@@ -153,6 +153,114 @@ a user who accidentally deletes everything can roll back. Not in v1.0.
 is transferred to "Other service" (Google Drive) for the purpose of
 "Account management / backup". Not collected by us directly.
 
+## SA-budget adaptation (shipped 2026-06-16, branch `claude/budget-app-8lcrir`)
+
+Adapted the PWA to the owner's real South-African finances (full build spec
+in session history). All single-file / offline / localStorage / CDN
+constraints preserved. Key model + UI additions:
+
+- **Internal transfers** — new `xfer` transaction type written as a linked
+  pair (`xferGroup`). Account balances include it; income/expense totals
+  and all spending charts exclude it (`isExpTx` / `isIncTx` / `gByMonth`).
+  New **Move-Money** overlay (`AcctXferOv`). This is the §1 keystone — a
+  sweep between own accounts is never counted as spending or income.
+- **Run-rate exclusions** — `tx.kind` of `oneoff` (capital events),
+  `lending_out`/`lending_repay` (recoverable) and `sinking` are kept out of
+  the monthly run-rate (`EXP_EXCLUDE` / `INC_EXCLUDE`).
+- **Category groups** — envelopes carry `group` (Income · Home & Family ·
+  Health · Everyday · Lifestyle · Lending). New **Budget Table** overlay
+  (`BudgetOv`): grouped Actual vs editable Target vs Diff, subtotals, and a
+  prominent Income − Spending bottom line. Income rows come from income
+  sources and can be paused.
+- **Income sources** — modelled as `recurring` rows with `isIncome`,
+  `paused`, `endTs`. Auto-post effect honours all three (the stopped
+  investment-interest case is seeded `paused`).
+- **Payee rules** — `D.rules` (`{match,kind,eid}`); `classifyImport()` applies
+  them then Capitec description patterns then sign/keyword. **Rules** overlay
+  (`RulesOv`) to manage; import can save a rule per payee.
+- **Capitec import** — `ImportOv` rewritten: paste text / CSV / PDF (pdf.js
+  from CDN, on-device), auto-categorise (transfer/subscription/fee/lending/
+  person), per-row type override + skip + save-rule, hardened dedup
+  (amount + payee + account).
+- **Subscriptions & fees** — `SubsOv`: detects recurring subs, flags spikes
+  (latest > 1.25× baseline), totals fee leakage; low-balance warning when
+  Main < `account.minBuffer`.
+- **Lending / receivables** — `D.receivables` + `LendingOv`: track money
+  lent as recoverable, match repayments (reduce balance, not counted as
+  income), pausable.
+- **Sinking funds** — goals carry `sinking:true`; one-off capital events
+  tagged `oneoff` so they don't distort the monthly view.
+- **Seed** — demo data replaced with the owner's real budget (7 accounts,
+  the 6 groups with ballpark targets, income sources, payee rules, a
+  receivable, 6 months of representative history). Default mode = `power`.
+  Settings → Reset restores this template (transactional data cleared).
+
+New tier-feature keys: `budgetTable`, `acctXfer` (Standard); `payeeRules`,
+`subscriptions`, `lending` (Power).
+
+Verification: code-reviewed + delimiter-balance checked; live verification is
+via the Netlify branch-preview URL (mobile workflow). Not yet merged to `main`.
+
+### Follow-up fixes + polish pass (2026-06-16, same branch)
+
+**Functional fixes (Part A):**
+- **§1 hero** now shows TRUE money-on-hand — the combined balance across the 7
+  accounts (real net worth), clearly labelled "TOTAL BALANCE · money on hand · N
+  accounts". Budget-remaining is surfaced separately as a labelled "BUDGET LEFT"
+  metric. The two are no longer conflated. (`netWorth`/`acctTotal` in `App`,
+  threaded into `Dash` + `Sidebar`.)
+- **§6 subscription spikes** — `analyzeSubs()`/`topSubSpike()` now scan EVERY month
+  of each sub's history against a robust median baseline and flag any month >1.4×
+  baseline (and ≥R100 over). The past AI-tool spike now fires, is surfaced as a
+  dashboard banner, and shown in the Subs overlay with per-month sparklines (spike
+  month glows amber).
+- **§4 split** — over-budget envelopes now WARN (amber, "· allowed") instead of
+  blocking, so the pharmacy→Medicine split works when Medicine is over. Added a
+  second mode that re-buckets a **merchant's monthly total** across categories
+  (`merchantSplit` txs, reachable from the new ✂ Split dashboard tool). Empty split
+  lines are ignored on save.
+- **Seed is fully fictional demo data** (no real personal/financial info): current
+  month nets a tidy demo surplus (income ~R42k, run-rate ~R38.5k); current month kept
+  exact, history mildly varied for realism. Every feature exercised + editable.
+- **Backup** made prominent — a 💾 button in the dashboard header, sidebar footer
+  and tools row opens a dedicated Backup & Restore overlay (export/import). Per-
+  account **minimum buffer** is now user-editable in Settings → Accounts.
+
+**Visual / UX polish (Part B):**
+- `prefers-reduced-motion` honoured (CSS media query neutralises animations;
+  `useCountUp` jumps to value).
+- Count-up animation on the dashboard + budget-table "Income − Spending" net.
+- Hero sheen sweep on load; gradient + glow envelope progress bars.
+- Envelopes tab grouped by category group with colour-coded headers and per-group
+  subtotals.
+
+**Premium visual round (Part C) — "well animated, colorful, looks AMAZING":**
+- **Colour** — all 9 accent themes re-pitched to richer, more confident pairs
+  (vivid yet legible on dark + light); accent-tinted glass cards with ambient glow;
+  accent-washed page background (layered radial gradients); semantic red/amber/green
+  preserved.
+- **Layout** — desktop (~1440px) dashboard reworked into a dense, balanced
+  CSS-multicolumn masonry that fills the space (2 cols ≥1180px, 3 ≥1560px); the old
+  hard 860px content cap removed and width is now tab-aware. Mobile single-column
+  layout kept and untouched.
+- **Charts** — subscription "sparkline squares" replaced with real animated
+  area+line sparklines (spike months glow amber); Monthly Trend upgraded from
+  expense-only bars to a dual **income-vs-expense** area chart with draw-in + spike
+  marker; donut/rings keep colour + glow.
+- **Icons** — emoji removed from the chrome in favour of a cohesive inline SVG icon
+  set (Lucide-style, `Icon` component + `EMO` emoji→name map); nav, hero, accounts,
+  goals, tools, settings, themes, tiers, overlays all use it.
+- **Typography** — added **Sora** display face (`F3`); hero balance + key figures
+  set large/tight with a gradient text-clip "moment" and tabular numerals.
+- **Animation** — staggered card/row entrances, count-ups, chart draw-in
+  (stroke-dashoffset), area rise, dot pops, envelope-fill bars, card hover-lift on
+  desktop. All gated behind `prefers-reduced-motion`.
+
+Verified headless (Playwright, mobile 390px + desktop 1440px + light/dark + sunset/
+galaxy/tech themes + overlays + reduced-motion): **zero console errors in every
+state**, all four prior must-fixes still confirmed, animation captured mid-transition,
+persistence survives reload. Single-file / no-backend / CDN-only constraints kept.
+
 ## Backlog (PWA-only, nice-to-have)
 
 Not blocking the Flutter rewrite, but tracked here so they're not lost:
